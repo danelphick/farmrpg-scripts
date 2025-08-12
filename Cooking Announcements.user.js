@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Cooking announcemengs Notification
+// @name         Cooking Announcements
 // @version      0.1
 // @description  Announce when the cooking actions are ready
 // @author       danelphick@
