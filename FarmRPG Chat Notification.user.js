@@ -20,7 +20,6 @@
 const DateTime = luxon.DateTime;
 
 let notifEnabled = GM_getValue("notifEnabled", false);
-console.log(`notifEnabled ${notifEnabled}`);
 let focusPing = true;
 const today = new Date();
 today.setUTCHours(0);
@@ -31,8 +30,6 @@ let prevNotifTime = DateTime.fromISO(
   GM_getValue("prevNotifTime", "1970-01-01T00:00:00Z")
 );
 let ntfyTopic = "";
-
-console.log(`Last notif time: ${prevNotifTime}`);
 
 $(`<style>
 #ccnotif+label {background-color: #400; color: #fb7a24}
@@ -181,12 +178,9 @@ function checkForPing(chatList) {
     let chatAuthor = getChatAuthorFromChat(chat);
 
     let chatContent = chat.childNodes[7].textContent;
-    // console.log(`chat: ${chatContent}`);
     for (let anchor of $(chat.childNodes[7]).children("a")) {
-      // console.log(`anchor: ${anchor}`);
       if (anchor.href.indexOf("profile.php") >= 0) {
         let tag = anchor.textContent.substr(1);
-        // console.log(`Tagged ${tag}`);
         let messageList = messagesByTag[tag];
         if (messageList === undefined) {
           messageList = [];
@@ -233,16 +227,15 @@ function checkForPing(chatList) {
   if (newMessages.length > 0) {
     prevNotifTime = newMessages[0][0];
     GM_setValue("prevNotifTime", prevNotifTime.toISO());
-    console.log(`Set time to ${GM_getValue("prevNotifTime")}`);
   }
 
-  console.log("New Messages:");
+  // console.log("New Messages:");
   for (let i = newMessages.length - 1; i >= 0; --i) {
     let message = newMessages[i];
     messages.push(message);
     let [notifTime, chatAuthor, chatContent, chat] = message;
     const notifTimeString = notifTime.toFormat("HH:mm:ss");
-    console.log(`${notifTimeString} ${chatAuthor}: ${chatContent}`);
+    // console.log(`${notifTimeString} ${chatAuthor}: ${chatContent}`);
   }
 
   if (currentSelected) {
