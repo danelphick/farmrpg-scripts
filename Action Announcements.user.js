@@ -12,17 +12,12 @@
 // @grant        GM.getValue
 // @grant        GM.setValue
 // @require      http://code.jquery.com/jquery-3.6.0.min.js
-// @require      https://raw.githubusercontent.com/erming/tabcomplete/refs/heads/gh-pages/src/tabcomplete.min.js
 // @require      https://openuserjs.org/src/libs/sizzle/GM_config.min.js
 // ==/UserScript==
 
 /* globals $, GM_config */
 
 let myBox = null;
-let cropTimeLeft = null;
-let stirTimeLeft = null;
-let tasteTimeLeft = null;
-let seasonTimeLeft = null;
 const synth = window.speechSynthesis;
 let pendingUtterances = [];
 let voice = null;
@@ -58,8 +53,6 @@ let gmc = new GM_config({
     },
   },
 });
-
-// gmc.open();
 
 // Taken from:
 // https://stackoverflow.com/questions/5525071/how-to-wait-until-an-element-exists
@@ -125,106 +118,102 @@ function setVoice(...utterances) {
 
 setVoice();
 
-let cropCountDownId = null;
-let kitchenControls = {
-  stir: { timer: -1, button: null },
-  taste: { timer: -1, button: null },
-  season: { timer: -1, button: null },
-  collect: { timer: -1, button: null },
-  cook: { timer: -1, button: null },
+let intervalTimer = null;
+let actionControls = {
+  stir: {
+    button: null,
+    span: null,
+    finishTime: null,
+    initTime: 60,
+    addTime: 15 * 60,
+    speech: "Time to stir",
+  },
+  taste: {
+    button: null,
+    span: null,
+    finishTime: null,
+    initTime: 3 * 60,
+    addTime: 20 * 60,
+    speech: "Time to taste",
+  },
+  season: {
+    button: null,
+    span: null,
+    finishTime: null,
+    initTime: 5 * 60,
+    addTime: 30 * 60,
+    speech: "Time to season",
+  },
+  collect: {
+    button: null,
+    span: null,
+    finishTime: null,
+    initTime: null,
+    addTime: null,
+    speech: "Cooking done",
+  },
+  cook: {
+    button: null,
+    span: null,
+    finishTime: null,
+    initTime: null,
+    addTime: null,
+    speech: null,
+  },
+  crop: {
+    button: null,
+    span: null,
+    finishTime: null,
+    initTime: null,
+    addTime: null,
+    speech: "Crops done",
+  },
 };
 
-function addTimer(activityName, time, repeatTime) {
-  // Speak the words
-  // Clear stale timer. Not ideal as this could actually set the timer to wrong
-  // value if pressed too early.
-  if (kitchenControls[activityName].timer >= 0) {
-    console.log(`Clearing timer for ${activityName}.`);
-    clearTimeout(kitchenControls[activityName].timer);
-  }
-
-  addKitchenEventListener(activityName, repeatTime);
-
-  // Set a new timer
-  console.log(`Setting ${activityName} timer for ${time / 60000}m.`);
-  kitchenControls[activityName].timer = setTimeout(() => {
-    updateButtons();
-
-    const utterance = new SpeechSynthesisUtterance("Time to " + activityName);
-    setVoice(utterance);
-    synth.speak(utterance);
-  }, time);
+function addActionEventListener(activityName) {
+  const control = actionControls[activityName];
+  control.button
+    .off("click.action-announcements")
+    .on("click.action-announcements", (_click) => {
+      setTimeout(() => resetTimer(activityName, false), 10);
+    });
 }
 
-function addKitchenEventListener(activityName, time) {
-  const button = kitchenControls[activityName].button;
-  console.log("adding click listener: " + activityName);
-  button.addEventListener("click", (_click) => {
-    console.log("click listener triggered: " + activityName);
-    setTimeout(() => addTimer(activityName, time, time), 10);
-  });
+function resetTimer(activityName, initCook) {
+  // Set a new timer
+  control = actionControls[activityName];
+  const time = initCook ? control.initTime : control.addTime;
+  control.finishTime = new Date().getTime() + time * 1000;
+
+  console.log(`Setting ${activityName} timer for ${time / 60}m.`);
 }
 
 let kitchen = null;
 
 function updateButtons() {
-  let contentBlock = kitchen.querySelector("div.content-block");
-  let buttons = contentBlock.querySelector("div.buttons-row");
+  let contentBlock = $(kitchen).find("div.content-block");
+  let buttons = contentBlock.find("div.buttons-row").children();
 
-  kitchenControls.collect.button = buttons.children[0];
-  kitchenControls.stir.button = buttons.children[1];
-  kitchenControls.taste.button = buttons.children[2];
-  kitchenControls.season.button = buttons.children[3];
-  kitchenControls.cook.button = contentBlock.querySelector(".cookallbtn");
+  actionControls.collect.button = $(buttons[0]);
+  actionControls.stir.button = $(buttons[1]);
+  actionControls.taste.button = $(buttons[2]);
+  actionControls.season.button = $(buttons[3]);
+  actionControls.cook.button = $(contentBlock.find(".cookallbtn")[0]);
 
-  addKitchenEventListener("stir", 15 * 60000);
-  addKitchenEventListener("taste", 20 * 60000);
-  addKitchenEventListener("season", 30 * 60000);
-}
-
-function monitorKitchen() {
-  console.log("monitor kitchen");
-  function installClickListeners() {
-    kitchenControls.cook.button.addEventListener("click", () => {
-      addTimer("stir", 60000, 15 * 60000);
-      addTimer("taste", 3 * 60000, 20 * 60000);
-      addTimer("season", 5 * 60000, 30 * 60000);
-    });
+  for (const control of ["stir", "taste", "season"]) {
+    addActionEventListener(control);
   }
 
-  function mutationCallback(mutationList, observer) {
-    const fireworks = document.getElementById("fireworks");
-    const newKitchen = fireworks.querySelector(
-      "div.pages div[data-page=kitchen]"
-    );
-
-    if (!newKitchen) {
-      setTimeout(10, mutationCallback);
-      return;
+  actionControls.cook.button.off("click.action-announcements").on("click.action-announcements", () => {
+    for (control of ["stir", "taste", "season"]) {
+      resetTimer(control, true);
     }
-    if (kitchen != newKitchen) {
-      kitchen = newKitchen;
-      updateButtons();
-      // console.log(kitchenControls);
-      observer = new MutationObserver(mutationCallback);
-      observer.observe(kitchen, {
-        childList: true,
-        attributes: false,
-        subtree: false,
-      });
-    }
-    installClickListeners();
-  }
-
-  mutationCallback();
+  });
 }
 
-let croparea = null;
 let timeoutId = 0;
 
-let plantAllClickListener = null;
-
-function addListenerToPlantAllButton(oldCroparea, oldPlantAll) {
+function addListenerToPlantAllButton() {
   const plantAll = $(".plantallbtn");
   if (!plantAll) {
     setTimeout(10, monitorPlantAll);
@@ -244,44 +233,88 @@ function addListenerToPlantAllButton(oldCroparea, oldPlantAll) {
           setVoice(utterance);
           synth.cancel();
           synth.speak(utterance);
-          if (cropCountDownId) {
-            clearInterval(cropCountDownId);
-            cropCountDownId = null;
-          }
-          cropTimeLeft.text("Done!").css("color: red");
+          actionControls.crop.span.text("Done!").css("color: red");
         }, time * 1000);
-        if (cropCountDownId) {
-          clearInterval(cropCountDownId);
-        }
-        cropCountDownId = setRemainingTimeAndCreateTimer(cropTimeLeft, time);
-      }, 500)});
+        console.log(`Setting crop timer for ${time} seconds.`);
+        setupTimerForControl("crop", new Date().getTime() + time * 1000);
+      }, 500);
+    });
   });
+}
+
+function setRemainingTimeOnSpan(timeLeftSpan, timeRemaining) {
+  if (timeRemaining <= 0) {
+    timeLeftSpan.text("Done!").css("color: red");
+  } else {
+    if (timeRemaining > 60000) {
+      const seconds = Math.floor((timeRemaining % 60000) / 1000);
+      if (seconds == 0) {
+        timeLeftSpan.text(`${Math.floor(timeRemaining / 60000)}m`);
+      } else {
+        timeLeftSpan.text(`${Math.floor(timeRemaining / 60000)}m ${seconds}s`);
+      }
+    } else {
+      timeLeftSpan.text(`${Math.ceil(timeRemaining / 1000)}s`);
+    }
+    timeLeftSpan.css("color: white");
+  }
+}
+
+function setupTimerForControl(name, finishTime) {
+  console.log("setupTimerForControl", name, finishTime);
+  actionControls[name].finishTime = finishTime;
+  setRemainingTimeOnSpan(actionControls[name].span, "");
+}
+
+function updateTimers() {
+  const currentTime = new Date().getTime();
+  for (const control of Object.values(actionControls)) {
+    if (control.finishTime == null) continue;
+    const timeLeft = control.finishTime - currentTime;
+    if (timeLeft <= 0) {
+      control.span.text("Done!").css("color: red");
+      const utterance = new SpeechSynthesisUtterance(control.speech);
+      setVoice(utterance);
+      synth.speak(utterance);
+      control.finishTime = null;
+    } else {
+      setRemainingTimeOnSpan(control.span, Math.ceil(timeLeft));
+    }
+  }
 }
 
 function monitorPlantAll() {
   waitForElm("#croparea").then((croparea) => {
     setTimeout(() => {
-      const plantAll = croparea?.children[0]?.children[0]?.children[2];
-      addListenerToPlantAllButton(croparea, plantAll);
+      addListenerToPlantAllButton();
     }, 300);
   });
 }
 
-function setRemainingTime(timeLeftSpan, timeRemaining) {
-  if (timeRemaining > 60) {
-    timeLeftSpan.text(`${Math.floor(timeRemaining / 60)}m`);
-  } else {
-    timeLeftSpan.text(`${timeRemaining}s`);
-  }
-}
+function monitorKitchen() {
+  function mutationCallback(mutationList, observer) {
+    const newKitchen = $("#fireworks div.pages div[data-page=kitchen]");
 
-function setRemainingTimeAndCreateTimer(timeLeftSpan, timeRemaining) {
-  setRemainingTime(timeLeftSpan, timeRemaining);
-  // TODO: This should look at actual wall clock time.
-  return setInterval(() => {
-    --timeRemaining;
-    setRemainingTime(timeLeftSpan, timeRemaining);
-  }, 1000);
+    if (!newKitchen.length) {
+      setTimeout(() => { mutationCallback(mutationList, observer);}, 10);
+      return;
+    }
+    if (kitchen != newKitchen.get()[0]) {
+      kitchen = newKitchen.get()[0];
+      updateButtons();
+      if (observer != null) {
+        observer.disconnect();
+      }
+      observer = new MutationObserver(mutationCallback);
+      observer.observe(kitchen, {
+        childList: true,
+        attributes: false,
+        subtree: false,
+      });
+    }
+  }
+
+  mutationCallback();
 }
 
 function addLocationObserver(callback) {
@@ -317,22 +350,28 @@ $(document).ready(function () {
     background-color: rgba(0, 0, 0, 0.3);
     color: white;
     box-sizing: border-box;
-    font-size: 0.75em;
+    font-size: 0.8em;
     padding: 10px;
   '>
     <div id='crop-time-left'>Crop Time Left: <span id="crop-time">Unknown</span></div>
     <div id='stir-time-left'>Time till stir: <span id="stir-time">Unknown</span></div>
     <div id='taste-time-left'>Time till taste: <span id="taste-time">Unknown</span></div>
-    <div id='season-time-left'>Time till season:<span id="season-time">Unknown</span></div>
+    <div id='season-time-left'>Time till season: <span id="season-time">Unknown</span></div>
     <button id='open-config'>Open Settings</button>
   </div>
   `);
 
-  cropTimeLeft = $("#crop-time");
-  stirTimeLeft = $("#stir-time");
-  tasteTimeLeft = "$#taste-time";
-  seasonTimeLeft = "$#season-time";
+  $("#open-config").on("click", () => {
+    gmc.open();
+  });
+
+  actionControls.stir.span = $("#stir-time-left span");
+  actionControls.taste.span = $("#taste-time-left span");
+  actionControls.season.span = $("#season-time-left span");
+  actionControls.crop.span = $("#crop-time-left span");
 
   addLocationObserver(observerCallback);
   observerCallback();
+
+  setInterval(updateTimers, 1000);
 });
