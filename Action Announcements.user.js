@@ -13,9 +13,19 @@
 // @grant        GM.setValue
 // @require      http://code.jquery.com/jquery-3.6.0.min.js
 // @require      https://openuserjs.org/src/libs/sizzle/GM_config.min.js
+// @require      https://moment.github.io/luxon/global/luxon.min.js
 // ==/UserScript==
 
-/* globals $, GM_config */
+/* globals $, GM_config, luxon */
+
+const DateTime = luxon.DateTime;
+
+// TODO: This should convert to the user's timezone rather than hardcoding Europe/London.
+function parseTimeInGameTZ(timeString) {
+  return DateTime.fromISO(timeString, {
+    zone: "America/Chicago",
+  }).setZone("Europe/London");
+}
 
 let myBox = null;
 const synth = window.speechSynthesis;
@@ -119,11 +129,11 @@ function setVoice(...utterances) {
 setVoice();
 
 let intervalTimer = null;
-let actionControls = {
+const actionControls = {
   stir: {
     button: null,
     span: null,
-    finishTime: null,
+    finishTime: GM_getValue("stir_finish_time", null),
     initTime: 60,
     addTime: 15 * 60,
     speech: "Time to stir",
@@ -131,7 +141,7 @@ let actionControls = {
   taste: {
     button: null,
     span: null,
-    finishTime: null,
+    finishTime: GM_getValue("taste_finish_time", null),
     initTime: 3 * 60,
     addTime: 20 * 60,
     speech: "Time to taste",
@@ -139,7 +149,7 @@ let actionControls = {
   season: {
     button: null,
     span: null,
-    finishTime: null,
+    finishTime: GM_getValue("season_finish_time", null),
     initTime: 5 * 60,
     addTime: 30 * 60,
     speech: "Time to season",
@@ -147,7 +157,7 @@ let actionControls = {
   collect: {
     button: null,
     span: null,
-    finishTime: null,
+    finishTime: GM_getValue("collect_finish_time", null),
     initTime: null,
     addTime: null,
     speech: "Cooking done",
@@ -163,7 +173,7 @@ let actionControls = {
   crop: {
     button: null,
     span: null,
-    finishTime: null,
+    finishTime: GM_getValue("crop_finish_time", null),
     initTime: null,
     addTime: null,
     speech: "Crops done",
@@ -175,18 +185,38 @@ function addActionEventListener(activityName) {
   control.button
     .off("click.action-announcements")
     .on("click.action-announcements", (_click) => {
-      setTimeout(() => resetTimer(activityName, false), 10);
+      setTimeout(() => setKitchenTimer(activityName, false), 10);
     });
 }
 
-function resetTimer(activityName, initCook) {
-  // Set a new timer
+function setKitchenTimer(activityName, initCook) {
   control = actionControls[activityName];
-  const time = initCook ? control.initTime : control.addTime;
-  control.finishTime = new Date().getTime() + time * 1000;
-
-  console.log(`Setting ${activityName} timer for ${time / 60}m.`);
+  const timeLeft = initCook ? control.initTime : control.addTime;
+  setTimeLeft(activityName, timeLeft);
 }
+
+function setTimeLeft(activityName, timeLeft) {
+  control = actionControls[activityName];
+  const newFinishTime = new Date().getTime() + timeLeft * 1000;
+  if (control.finishTime != null && control.finishTime < newFinishTime) {
+    return;
+  }
+  setFinishTime(activityName, newFinishTime);
+
+  control.finishTime = new Date().getTime() + timeLeft * 1000;
+  GM_setValue(`${activityName}_finish_time`, control.finishTime);
+  console.log(`Setting ${activityName} timer for ${timeLeft / 60}m.`);
+}
+
+function setFinishTime(activityName, finishTime) {
+  control = actionControls[activityName];
+  control.finishTime = finishTime;
+  GM_setValue(`${activityName}_finish_time`, control.finishTime);
+  console.log(
+    `Setting ${activityName} finish time to ${new Date(finishTime).toLocaleString()}.`
+  );
+}
+
 
 let kitchen = null;
 
@@ -204,11 +234,25 @@ function updateButtons() {
     addActionEventListener(control);
   }
 
-  actionControls.cook.button.off("click.action-announcements").on("click.action-announcements", () => {
-    for (control of ["stir", "taste", "season"]) {
-      resetTimer(control, true);
-    }
-  });
+  actionControls.cook.button
+    .off("click.action-announcements")
+    .on("click.action-announcements", () => {
+      for (control of ["stir", "taste", "season"]) {
+        setKitchenTimer(control, true);
+      }
+    });
+
+  const finishTimeString = contentBlock
+    .find("span[data-countdown-to]")[0]
+    .getAttribute("data-countdown-to");
+  const finishTime = parseTimeInGameTZ(finishTimeString);
+
+  setFinishTime("collect", finishTime);
+
+  actionControls.collect.button
+    .off("click.action-announcements")
+    .on("click.action-announcements", () => {
+    });
 }
 
 let timeoutId = 0;
@@ -228,7 +272,7 @@ function addListenerToPlantAllButton() {
     setTimeout(() => {
       waitForElm("#croparea .concrop").then((crop) => {
         const time = Number(crop.getAttribute("data-seconds"));
-        setupTimerForControl("crop", new Date().getTime() + time * 1000);
+        setTimeLeft("crop", time);
       }, 500);
     });
   });
@@ -287,7 +331,9 @@ function monitorKitchen() {
     const newKitchen = $("#fireworks div.pages div[data-page=kitchen]");
 
     if (!newKitchen.length) {
-      setTimeout(() => { mutationCallback(mutationList, observer);}, 10);
+      setTimeout(() => {
+        mutationCallback(mutationList, observer);
+      }, 10);
       return;
     }
     if (kitchen != newKitchen.get()[0]) {
@@ -343,6 +389,7 @@ $(document).ready(function () {
     <div id='stir-time-left'>Time till stir: <span id="stir-time">Unknown</span></div>
     <div id='taste-time-left'>Time till taste: <span id="taste-time">Unknown</span></div>
     <div id='season-time-left'>Time till season: <span id="season-time">Unknown</span></div>
+    <div id='collect-time-left'>Cook Time Left: <span id="collect-time">Unknown</span></div>
     <button id='open-config'>Open Settings</button>
   </div>
   `);
@@ -355,6 +402,7 @@ $(document).ready(function () {
   actionControls.taste.span = $("#taste-time-left span");
   actionControls.season.span = $("#season-time-left span");
   actionControls.crop.span = $("#crop-time-left span");
+  actionControls.collect.span = $("#collect-time-left span");
 
   addLocationObserver(observerCallback);
   observerCallback();
