@@ -228,14 +228,6 @@ function addListenerToPlantAllButton() {
     setTimeout(() => {
       waitForElm("#croparea .concrop").then((crop) => {
         const time = Number(crop.getAttribute("data-seconds"));
-        setTimeout(() => {
-          const utterance = new SpeechSynthesisUtterance("Crops done!");
-          setVoice(utterance);
-          synth.cancel();
-          synth.speak(utterance);
-          actionControls.crop.span.text("Done!").css("color: red");
-        }, time * 1000);
-        console.log(`Setting crop timer for ${time} seconds.`);
         setupTimerForControl("crop", new Date().getTime() + time * 1000);
       }, 500);
     });
@@ -261,12 +253,11 @@ function setRemainingTimeOnSpan(timeLeftSpan, timeRemaining) {
 }
 
 function setupTimerForControl(name, finishTime) {
-  console.log("setupTimerForControl", name, finishTime);
   actionControls[name].finishTime = finishTime;
   setRemainingTimeOnSpan(actionControls[name].span, "");
 }
 
-function updateTimers() {
+function updateTimerSpans() {
   const currentTime = new Date().getTime();
   for (const control of Object.values(actionControls)) {
     if (control.finishTime == null) continue;
@@ -318,13 +309,8 @@ function monitorKitchen() {
 }
 
 function addLocationObserver(callback) {
-  // Options for the observer (which mutations to observe)
   const config = { attributes: false, childList: true, subtree: false };
-
-  // Create an observer instance linked to the callback function
   const observer = new MutationObserver(callback);
-
-  // Start observing the target node for configured mutations
   observer.observe(document.body, config);
 }
 
@@ -373,5 +359,5 @@ $(document).ready(function () {
   addLocationObserver(observerCallback);
   observerCallback();
 
-  setInterval(updateTimers, 1000);
+  setInterval(updateTimerSpans, 1000);
 });
