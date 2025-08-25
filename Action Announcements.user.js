@@ -255,8 +255,6 @@ function updateButtons() {
     });
 }
 
-let timeoutId = 0;
-
 function addListenerToPlantAllButton() {
   const plantAll = $(".plantallbtn");
   if (!plantAll) {
@@ -265,16 +263,13 @@ function addListenerToPlantAllButton() {
   }
   plantAll.off("click.action-announcements");
   plantAll.on("click.action-announcements", (event) => {
-    if (timeoutId != 0) {
-      clearTimeout(timeoutId);
-    }
     // Wait for the new crops to be loaded. Should really watch for mutations.
     setTimeout(() => {
       waitForElm("#croparea .concrop").then((crop) => {
         const time = Number(crop.getAttribute("data-seconds"));
         setTimeLeft("crop", time);
-      }, 500);
-    });
+      });
+    }, 0);
   });
 }
 
