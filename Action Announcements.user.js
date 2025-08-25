@@ -197,13 +197,14 @@ function setKitchenTimer(activityName, initCook) {
 
 function setTimeLeft(activityName, timeLeft) {
   control = actionControls[activityName];
-  const newFinishTime = new Date().getTime() + timeLeft * 1000;
-  if (control.finishTime != null && control.finishTime < newFinishTime) {
+  const now = new Date().getTime();
+  const newFinishTime = now + timeLeft * 1000;
+  if (control.finishTime != null && control.finishTime > now) {
     return;
   }
   setFinishTime(activityName, newFinishTime);
 
-  control.finishTime = new Date().getTime() + timeLeft * 1000;
+  control.finishTime = newFinishTime;
   GM_setValue(`${activityName}_finish_time`, control.finishTime);
   console.log(`Setting ${activityName} timer for ${timeLeft / 60}m.`);
 }
@@ -261,6 +262,12 @@ function addListenerToPlantAllButton() {
     setTimeout(10, monitorPlantAll);
     return;
   }
+
+  waitForElm("#croparea .concrop").then((crop) => {
+    const time = Number(crop.getAttribute("data-seconds"));
+    setTimeLeft("crop", time);
+  });
+
   plantAll.off("click.action-announcements");
   plantAll.on("click.action-announcements", (event) => {
     // Wait for the new crops to be loaded. Should really watch for mutations.
