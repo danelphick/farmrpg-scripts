@@ -62,6 +62,10 @@ let gmc = new GM_config({
       default: true,
     },
   },
+  events: {
+    init: () => onPreferencesChanged,
+    save: () => onPreferencesChanged,
+  },
 });
 
 // Taken from:
@@ -136,6 +140,7 @@ const actionControls = {
     finishTime: GM_getValue("stir_finish_time", null),
     initTime: 60,
     addTime: 15 * 60,
+    announce: false,
     speech: "Time to stir",
   },
   taste: {
@@ -144,6 +149,7 @@ const actionControls = {
     finishTime: GM_getValue("taste_finish_time", null),
     initTime: 3 * 60,
     addTime: 20 * 60,
+    announce: false,
     speech: "Time to taste",
   },
   season: {
@@ -152,6 +158,7 @@ const actionControls = {
     finishTime: GM_getValue("season_finish_time", null),
     initTime: 5 * 60,
     addTime: 30 * 60,
+    announce: false,
     speech: "Time to season",
   },
   collect: {
@@ -160,6 +167,7 @@ const actionControls = {
     finishTime: GM_getValue("collect_finish_time", null),
     initTime: null,
     addTime: null,
+    announce: false,
     speech: "Cooking done",
   },
   cook: {
@@ -168,6 +176,7 @@ const actionControls = {
     finishTime: null,
     initTime: null,
     addTime: null,
+    announce: false,
     speech: null,
   },
   crop: {
@@ -176,9 +185,18 @@ const actionControls = {
     finishTime: GM_getValue("crop_finish_time", null),
     initTime: null,
     addTime: null,
+    announce: false,
     speech: "Crops done",
   },
 };
+
+function onPreferencesChanged() {
+  actionControls.stir.announce = gmc.get("enableStirAnnouncements");
+  actionControls.taste.announce = gmc.get("enableTasteAnnouncements");
+  actionControls.season.announce = gmc.get("enableSeasonAnnouncements");
+  actionControls.collect.announce = gmc.get("enableCollectAnnouncements");
+  actionControls.crop.announce = gmc.get("enableCropsAnnouncements");
+}
 
 function addActionEventListener(activityName) {
   const control = actionControls[activityName];
@@ -309,11 +327,14 @@ function updateTimerSpans() {
     if (control.finishTime == null) continue;
     const timeLeft = control.finishTime - currentTime;
     if (timeLeft <= 0) {
-      control.span.text("Done!").css("color: red");
-      const utterance = new SpeechSynthesisUtterance(control.speech);
-      setVoice(utterance);
-      synth.speak(utterance);
       control.finishTime = null;
+      control.span.text("Done!").css("color: red");
+
+      if (control.announce) {
+        const utterance = new SpeechSynthesisUtterance(control.speech);
+        setVoice(utterance);
+        synth.speak(utterance);
+      }
     } else {
       setRemainingTimeOnSpan(control.span, Math.ceil(timeLeft));
     }
