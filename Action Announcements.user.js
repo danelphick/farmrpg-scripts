@@ -63,8 +63,8 @@ let gmc = new GM_config({
     },
   },
   events: {
-    init: () => onPreferencesChanged,
-    save: () => onPreferencesChanged,
+    init: onPreferencesChanged,
+    save: onPreferencesChanged,
   },
 });
 
@@ -232,10 +232,11 @@ function setFinishTime(activityName, finishTime) {
   control.finishTime = finishTime;
   GM_setValue(`${activityName}_finish_time`, control.finishTime);
   console.log(
-    `Setting ${activityName} finish time to ${new Date(finishTime).toLocaleString()}.`
+    `Setting ${activityName} finish time to ${new Date(
+      finishTime
+    ).toLocaleString()}.`
   );
 }
-
 
 let kitchen = null;
 
@@ -261,17 +262,17 @@ function updateButtons() {
       }
     });
 
-  const finishTimeString = contentBlock
-    .find("span[data-countdown-to]")[0]
-    .getAttribute("data-countdown-to");
-  const finishTime = parseTimeInGameTZ(finishTimeString);
+  const finishTimeSpan = contentBlock.find("span[data-countdown-to]")[0];
+  if (finishTimeSpan) {
+    const finishTimeString = finishTimeSpan.getAttribute("data-countdown-to");
+    const finishTime = parseTimeInGameTZ(finishTimeString);
 
-  setFinishTime("collect", finishTime);
+    setFinishTime("collect", finishTime);
+  }
 
   actionControls.collect.button
     .off("click.action-announcements")
-    .on("click.action-announcements", () => {
-    });
+    .on("click.action-announcements", () => {});
 }
 
 function addListenerToPlantAllButton() {
