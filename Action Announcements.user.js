@@ -423,7 +423,11 @@ $(document).ready(function () {
   `);
 
   $("#open-config").on("click", () => {
-    gmc.open();
+    if (gmc.frame == null) {
+      gmc.open();
+    } else {
+      gmc.close();
+    }
   });
 
   actionControls.stir.span = $("#stir-time-left span");
