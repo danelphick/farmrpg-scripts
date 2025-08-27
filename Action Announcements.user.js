@@ -51,8 +51,8 @@ let gmc = new GM_config({
       type: "checkbox",
       default: true,
     },
-    enableCollectAnnouncements: {
-      label: "Announce collect ready",
+    enableCookAnnouncements: {
+      label: "Announce cooking done",
       type: "checkbox",
       default: true,
     },
@@ -161,23 +161,14 @@ const actionControls = {
     announce: false,
     speech: "Time to season",
   },
-  collect: {
+  cook: {
     button: null,
     span: null,
-    finishTime: GM_getValue("collect_finish_time", null),
+    finishTime: GM_getValue("cook_finish_time", null),
     initTime: null,
     addTime: null,
     announce: false,
     speech: "Cooking done",
-  },
-  cook: {
-    button: null,
-    span: null,
-    finishTime: null,
-    initTime: null,
-    addTime: null,
-    announce: false,
-    speech: null,
   },
   crop: {
     button: null,
@@ -194,7 +185,7 @@ function onPreferencesChanged() {
   actionControls.stir.announce = gmc.get("enableStirAnnouncements");
   actionControls.taste.announce = gmc.get("enableTasteAnnouncements");
   actionControls.season.announce = gmc.get("enableSeasonAnnouncements");
-  actionControls.collect.announce = gmc.get("enableCollectAnnouncements");
+  actionControls.cook.announce = gmc.get("enableCookAnnouncements");
   actionControls.crop.announce = gmc.get("enableCropsAnnouncements");
 }
 
@@ -223,19 +214,15 @@ function setTimeLeft(activityName, timeLeft) {
   setFinishTime(activityName, newFinishTime);
 
   control.finishTime = newFinishTime;
-  GM_setValue(`${activityName}_finish_time`, control.finishTime);
-  console.log(`Setting ${activityName} timer for ${timeLeft / 60}m.`);
 }
 
 function setFinishTime(activityName, finishTime) {
   control = actionControls[activityName];
+  if (!Number.isInteger(finishTime)) {
+    finishTime = finishTime.getTime();
+  }
   control.finishTime = finishTime;
   GM_setValue(`${activityName}_finish_time`, control.finishTime);
-  console.log(
-    `Setting ${activityName} finish time to ${new Date(
-      finishTime
-    ).toLocaleString()}.`
-  );
 }
 
 let kitchen = null;
@@ -244,7 +231,6 @@ function updateButtons() {
   let contentBlock = $(kitchen).find("div.content-block");
   let buttons = contentBlock.find("div.buttons-row").children();
 
-  actionControls.collect.button = $(buttons[0]);
   actionControls.stir.button = $(buttons[1]);
   actionControls.taste.button = $(buttons[2]);
   actionControls.season.button = $(buttons[3]);
@@ -265,14 +251,16 @@ function updateButtons() {
   const finishTimeSpan = contentBlock.find("span[data-countdown-to]")[0];
   if (finishTimeSpan) {
     const finishTimeString = finishTimeSpan.getAttribute("data-countdown-to");
-    const finishTime = parseTimeInGameTZ(finishTimeString);
+    const finishTime = parseTimeInGameTZ(finishTimeString).toJSDate();
 
-    setFinishTime("collect", finishTime);
+    setFinishTime("cook", finishTime);
+  } else {
+    // If no finish time is available then nothing is cooking so stir/taste/season can't be
+    // possible.
+    for (const control of ["stir", "taste", "season"]) {
+      setFinishTime(control, null);
+    }
   }
-
-  actionControls.collect.button
-    .off("click.action-announcements")
-    .on("click.action-announcements", () => {});
 }
 
 function addListenerToPlantAllButton() {
@@ -413,7 +401,7 @@ $(document).ready(function () {
     <div id='stir-time-left'>Time till stir: <span id="stir-time">Unknown</span></div>
     <div id='taste-time-left'>Time till taste: <span id="taste-time">Unknown</span></div>
     <div id='season-time-left'>Time till season: <span id="season-time">Unknown</span></div>
-    <div id='collect-time-left'>Cook Time Left: <span id="collect-time">Unknown</span></div>
+    <div id='cook-time-left'>Cook Time Left: <span id="cook-time">Unknown</span></div>
     <button id='open-config'>Open Settings</button>
   </div>
   `);
@@ -426,7 +414,7 @@ $(document).ready(function () {
   actionControls.taste.span = $("#taste-time-left span");
   actionControls.season.span = $("#season-time-left span");
   actionControls.crop.span = $("#crop-time-left span");
-  actionControls.collect.span = $("#collect-time-left span");
+  actionControls.cook.span = $("#cook-time-left span");
 
   addLocationObserver(observerCallback);
   observerCallback();
