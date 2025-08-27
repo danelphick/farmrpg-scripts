@@ -132,7 +132,6 @@ function setVoice(...utterances) {
 
 setVoice();
 
-let intervalTimer = null;
 const actionControls = {
   stir: {
     button: null,
@@ -311,6 +310,18 @@ function setupTimerForControl(name, finishTime) {
 }
 
 function updateTimerSpans() {
+  if (actionControls.cook.finishTime == null) {
+    actionControls.stir.finishTime = "N/A";
+    actionControls.taste.finishTime = "N/A";
+    actionControls.season.finishTime = "N/A"
+  } else {
+    for (const control of ["stir", "taste", "season"]) {
+      if (actionControls[control].finishTime > actionControls.cook.finishTime) {
+        actionControls[control].finishTime = "N/A";
+      }
+    }
+  }
+
   const currentTime = new Date().getTime();
   for (const control of Object.values(actionControls)) {
     if (control.finishTime == null) continue;
@@ -325,7 +336,12 @@ function updateTimerSpans() {
         synth.speak(utterance);
       }
     } else {
-      setRemainingTimeOnSpan(control.span, Math.ceil(timeLeft));
+      if (Number.isInteger(control.finishTime)) {
+        setRemainingTimeOnSpan(control.span, Math.ceil(timeLeft));
+      } else {
+        control.span.text(control.finishTime);
+      }
+
     }
   }
 }
