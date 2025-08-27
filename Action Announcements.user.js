@@ -33,8 +33,8 @@ let pendingUtterances = [];
 let voice = null;
 
 let gmc = new GM_config({
-  id: "cooking-announcements",
-  title: "Cooking Announcements Settings",
+  id: "actions-announcements",
+  title: "Action Announcements Settings",
   fields: {
     enableStirAnnouncements: {
       label: "Announce stir ready",
@@ -62,6 +62,40 @@ let gmc = new GM_config({
       default: true,
     },
   },
+  //  position: fixed;
+  //  top: 50%;
+  //  left: 50%;
+  //  transform: translate(-50%, -50%);
+  // transform: translateX(-50%);
+  frameStyle:
+    `
+     position: fixed;
+     left: 50%;
+     border: 1px solid rgb(0, 0, 0);
+     width: 450px;
+     height: 300px;
+     opacity: 1;
+     overflow: auto;
+     padding: 0px;
+     z-index: 9999;
+     display: block;
+    `,
+  css: `
+    body#actions-announcements {
+      background-color: #222;
+      color: white;
+      padding: 10px;
+    }
+    a#actions-announcements_resetLink {
+      color: #88f;
+    }
+    a#actions-announcements_resetLink:link {
+      color: #88f;
+    }
+    a#actions-announcements_resetLink:visited {
+      color: #c00;
+    }
+  `,
   events: {
     init: onPreferencesChanged,
     save: onPreferencesChanged,
@@ -313,7 +347,7 @@ function updateTimerSpans() {
   if (actionControls.cook.finishTime == null) {
     actionControls.stir.finishTime = "N/A";
     actionControls.taste.finishTime = "N/A";
-    actionControls.season.finishTime = "N/A"
+    actionControls.season.finishTime = "N/A";
   } else {
     for (const control of ["stir", "taste", "season"]) {
       if (actionControls[control].finishTime > actionControls.cook.finishTime) {
@@ -341,7 +375,6 @@ function updateTimerSpans() {
       } else {
         control.span.text(control.finishTime);
       }
-
     }
   }
 }
