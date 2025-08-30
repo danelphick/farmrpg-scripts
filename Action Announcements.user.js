@@ -251,7 +251,7 @@ function setTimeLeft(activityName, timeLeft) {
 
 function setFinishTime(activityName, finishTime) {
   control = actionControls[activityName];
-  if (!Number.isInteger(finishTime)) {
+  if (finishTime != null && !Number.isInteger(finishTime)) {
     finishTime = finishTime.getTime();
   }
   control.finishTime = finishTime;
