@@ -16,13 +16,18 @@
     $(document).ready(
         () => {
             function addButton(text, onclick, cssObj) {
+                // Check if button already exists.
+                if ($("#copyMasteryButton")) return
+
                 let masteryTitle = null;
                 for (let x of $(".content-block-title")) { if (x.textContent== "Mastery In-Progress") { masteryTitle = x; break; } }
                 if (masteryTitle) {
                     cssObj = cssObj || {position: 'relative', left:'4%', 'z-index': 3};
                     let button = document.createElement('button');
                     let btnStyle = button.style;
-                    masteryTitle.insertAdjacentElement("beforebegin", button);
+                    // Add button so it appears to the right of "Mastery In-Progress"
+                    masteryTitle.appendChild(button);
+                    button.id = 'copyMasteryButton';
                     button.innerHTML = text;
                     button.onclick = onclick;
                     Object.keys(cssObj).forEach(function (key) { btnStyle[key] = cssObj[key]; });
