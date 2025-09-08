@@ -32,34 +32,41 @@ const synth = window.speechSynthesis;
 let pendingUtterances = [];
 let voice = null;
 
+announcementOptions = ["None", "Speech", "OS Notification", "Both"];
+
 let gmc = new GM_config({
   id: "actions-announcements",
   title: "Action Announcements Settings",
   fields: {
     enableStirAnnouncements: {
       label: "Announce stir ready",
-      type: "checkbox",
-      default: true,
+      type: "select",
+      options: announcementOptions,
+      default: "speech",
     },
     enableTasteAnnouncements: {
       label: "Announce taste ready",
-      type: "checkbox",
-      default: true,
+      type: "select",
+      options: announcementOptions,
+      default: "speech",
     },
     enableSeasonAnnouncements: {
       label: "Announce season ready",
-      type: "checkbox",
-      default: true,
+      type: "select",
+      options: announcementOptions,
+      default: "speech",
     },
     enableCookAnnouncements: {
       label: "Announce cooking done",
-      type: "checkbox",
-      default: true,
+      type: "select",
+      options: announcementOptions,
+      default: "speech",
     },
     enableCropsAnnouncements: {
       label: "Announce crops ready",
-      type: "checkbox",
-      default: true,
+      type: "select",
+      options: announcementOptions,
+      default: "speech",
     },
     testNotifications: {
       label: "Test Notifications",
@@ -354,6 +361,16 @@ function setupTimerForControl(name, finishTime) {
   setRemainingTimeOnSpan(actionControls[name].span, "");
 }
 
+function shouldSpeak(announceSetting) {
+  return announceSetting == "Speech" || announceSetting == "Both";
+}
+
+function shouldShowNotification(announceSetting) {
+  return announceSetting == "OS Notification" || announceSetting == "Both";
+}
+
+let showingNotification = false;
+
 function updateTimerSpans() {
   if (actionControls.cook.finishTime == null) {
     actionControls.stir.finishTime = "N/A";
@@ -367,6 +384,7 @@ function updateTimerSpans() {
     }
   }
 
+  let notificationText = "";
   const currentTime = new Date().getTime();
   for (const control of Object.values(actionControls)) {
     if (control.finishTime == null) continue;
@@ -375,8 +393,11 @@ function updateTimerSpans() {
       control.finishTime = null;
       control.span.text("Done!").css("color: red");
 
-      if (control.announce) {
+      if (shouldSpeak(control.announce)) {
         speak(control.speech);
+      }
+      if (shouldShowNotification(control.announce)) {
+        notificationText += (notificationText ? "\n" : "") + control.speech;
       }
     } else {
       if (Number.isInteger(control.finishTime)) {
@@ -385,6 +406,21 @@ function updateTimerSpans() {
         control.span.text(control.finishTime);
       }
     }
+  }
+  if (notificationText) {
+    GM_notification({
+      text: notificationText,
+      title: "FarmRPG",
+      tag: "farmrpg-action-announcements",
+      ondone: () => {
+        showingNotification = false;
+      },
+    });
+    showingNotification = true;
+  } else if (showingNotification) {
+    // Clear any existing notification if there is nothing to show.
+    // TODO(how to cancel a notification???)
+    showingNotification = false;
   }
 }
 
