@@ -61,14 +61,25 @@ let gmc = new GM_config({
       type: "checkbox",
       default: true,
     },
+    testNotifications: {
+      label: "Test Notifications",
+      type: "button",
+      click: function () {
+        GM_notification({
+          text: "This is a test notification",
+          title: "Test Notification",
+        });
+      },
+    },
+    testSpeechNotifications: {
+      label: "Test Speech Notifications",
+      type: "button",
+      click: function () {
+        speak("This is a test speech notification");
+      },
+    },
   },
-  //  position: fixed;
-  //  top: 50%;
-  //  left: 50%;
-  //  transform: translate(-50%, -50%);
-  // transform: translateX(-50%);
-  frameStyle:
-    `
+  frameStyle: `
      position: fixed;
      left: 50%;
      border: 1px solid rgb(0, 0, 0);
@@ -167,6 +178,15 @@ function setVoice(...utterances) {
 setVoice();
 
 const actionControls = {
+  cook: {
+    button: null,
+    span: null,
+    finishTime: GM_getValue("cook_finish_time", null),
+    initTime: null,
+    addTime: null,
+    announce: false,
+    speech: "Cooking done",
+  },
   stir: {
     button: null,
     span: null,
@@ -193,15 +213,6 @@ const actionControls = {
     addTime: 30 * 60,
     announce: false,
     speech: "Time to season",
-  },
-  cook: {
-    button: null,
-    span: null,
-    finishTime: GM_getValue("cook_finish_time", null),
-    initTime: null,
-    addTime: null,
-    announce: false,
-    speech: "Cooking done",
   },
   crop: {
     button: null,
@@ -365,9 +376,7 @@ function updateTimerSpans() {
       control.span.text("Done!").css("color: red");
 
       if (control.announce) {
-        const utterance = new SpeechSynthesisUtterance(control.speech);
-        setVoice(utterance);
-        synth.speak(utterance);
+        speak(control.speech);
       }
     } else {
       if (Number.isInteger(control.finishTime)) {
@@ -377,6 +386,15 @@ function updateTimerSpans() {
       }
     }
   }
+}
+
+function speak(text) {
+  // Sometimes the speech gets stuck saying it's speaking and never resets.
+  // This prevents any new speech from starting.
+  synth.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  setVoice(utterance);
+  synth.speak(utterance);
 }
 
 function monitorPlantAll() {
