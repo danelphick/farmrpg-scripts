@@ -278,7 +278,7 @@ function setFinishTime(activityName, finishTime) {
 
 let kitchen = null;
 
-function updateButtons() {
+function updateKitchenButtons() {
   let contentBlock = $(kitchen).find("div.content-block");
   let buttons = contentBlock.find("div.buttons-row").children();
 
@@ -312,6 +312,38 @@ function updateButtons() {
       setFinishTime(control, null);
     }
   }
+}
+
+let oven = null;
+
+function updateOvenTimers() {
+  function getFirstWord(text) {
+    const firstSpace = text.indexOf(" ");
+    return firstSpace >= 0 ? text.substring(0, firstSpace) : text;
+  }
+
+  let contentBlock = $(oven).find("div.content-block");
+
+  const timeSpans = contentBlock.find("span[data-countdown-to]");
+  for (const timeSpan of timeSpans) {
+    const actionCountdownTo = timeSpan.getAttribute("data-countdown-to");
+    const actionText =
+      timeSpan.parentElement.previousElementSibling.children[0].textContent;
+    const action = getFirstWord(actionText).toLowerCase();
+    if (action in actionControls) {
+      const actionReadyTime = parseTimeInGameTZ(actionCountdownTo).toJSDate();
+      actionControls[action].finishTime = actionReadyTime.getTime();
+    }
+  }
+  const actionButtons = contentBlock.find("button[data-oven]");
+  for (const button of actionButtons) {
+    const action = getFirstWord(button.textContent).toLowerCase();
+    if (action in actionControls) {
+      actionControls[action].finishTime = new Date().getTime();
+    }
+  }
+
+
 }
 
 function addListenerToPlantAllButton() {
@@ -453,12 +485,40 @@ function monitorKitchen() {
     }
     if (kitchen != newKitchen.get()[0]) {
       kitchen = newKitchen.get()[0];
-      updateButtons();
+      updateKitchenButtons();
       if (observer != null) {
         observer.disconnect();
       }
       observer = new MutationObserver(mutationCallback);
       observer.observe(kitchen, {
+        childList: true,
+        attributes: false,
+        subtree: false,
+      });
+    }
+  }
+
+  mutationCallback();
+}
+
+function monitorOven() {
+  function mutationCallback(mutationList, observer) {
+    const newOven = $("#fireworks div.pages div[data-page=oven]");
+
+    if (!newOven.length) {
+      setTimeout(() => {
+        mutationCallback(mutationList, observer);
+      }, 10);
+      return;
+    }
+    if (oven != newOven.get()[0]) {
+      oven = newOven.get()[0];
+      updateOvenTimers();
+      if (observer != null) {
+        observer.disconnect();
+      }
+      observer = new MutationObserver(mutationCallback);
+      observer.observe(oven, {
         childList: true,
         attributes: false,
         subtree: false,
@@ -482,6 +542,8 @@ function observerCallback() {
     monitorPlantAll();
   } else if (pathname.endsWith("/kitchen.php")) {
     monitorKitchen();
+  } else if (pathname.endsWith("/oven.php")) {
+    monitorOven();
   }
 }
 
