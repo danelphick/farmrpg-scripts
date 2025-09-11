@@ -342,8 +342,6 @@ function updateOvenTimers() {
       actionControls[action].finishTime = new Date().getTime();
     }
   }
-
-
 }
 
 function addListenerToPlantAllButton() {
