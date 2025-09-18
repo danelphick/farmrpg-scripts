@@ -29,7 +29,6 @@ today.setUTCSeconds(0);
 let prevNotifTime = DateTime.fromISO(
   GM_getValue("prevNotifTime", "1970-01-01T00:00:00Z")
 );
-let ntfyTopic = "";
 
 $(`<style>
 #ccnotif+label {background-color: #400; color: #fb7a24}
@@ -141,6 +140,7 @@ function checkForPing(chatList) {
     "((Eggplant))",
     "((Feathers))",
     "((Glass Orb))",
+    "((Gold Feather))",
     "((Green Dye))",
     "((Heart Container))",
     "((Hops))",
@@ -211,15 +211,6 @@ function checkForPing(chatList) {
           title: chatAuthor,
           text: chatContent,
         });
-        if (ntfyTopic) {
-          fetch(`https://ntfy.sh/${ntfyTopic}`, {
-            method: "POST",
-            body: chatContent,
-            headers: {
-              Title: chatAuthor,
-            },
-          });
-        }
       }
     }
   }
