@@ -62,6 +62,24 @@ const messages = [];
 let messagesByAuthor = {};
 let messagesByTag = {};
 
+// Replace a DOM element with a new tag, preserving attributes and children.
+function replaceTag(element, newTag) {
+  const newElement = document.createElement(newTag);
+  for (const attr of element.attributes) {
+    newElement.setAttribute(attr.name, attr.value);
+  }
+  while (element.firstChild) {
+    newElement.appendChild(element.firstChild);
+  }
+  element.replaceWith(newElement);
+
+  if (element.style.length > 0) {
+    newElement.style.cssText = element.style.cssText;
+  }
+
+  return newElement;
+}
+
 function getThread(author1, author2) {
   const messages1 = messagesByAuthor[author1] || [];
   const messages2 = messagesByAuthor[author2] || [];
@@ -127,44 +145,6 @@ function selectChat(event) {
 }
 
 function checkForPing(chatList) {
-  const chat_box = $("#chat_txt_desktop");
-
-  chat_box.tabcomplete([
-    "((Apple Cider))",
-    "((Arnold Palmer))",
-    "((Arrowhead))",
-    "((Blue Dye))",
-    "((Carrot))",
-    "((Caterpillar))",
-    "((Cucumber))",
-    "((Eggplant))",
-    "((Feathers))",
-    "((Glass Orb))",
-    "((Gold Feather))",
-    "((Green Dye))",
-    "((Heart Container))",
-    "((Hops))",
-    "((Large Net))",
-    "((Leather))",
-    "((Leek))",
-    "((Mushroom Paste))",
-    "((Mushroom))",
-    "((Onion))",
-    "((Orange Juice))",
-    "((Peas))",
-    "((Peppers))",
-    "((Potato))",
-    "((Purple Dye))",
-    "((Purple Flower))",
-    "((Radish))",
-    "((Red Dye))",
-    "((Rope))",
-    "((Tomato))",
-    "((Twine))",
-    "((Shrimp-a-Plenty))",
-    "((Yarn))",
-  ]);
-
   let newMessages = [];
 
   messagesByTag = {};
@@ -235,6 +215,45 @@ function checkForPing(chatList) {
 }
 
 $(document).ready(function () {
+  const original_chat_box = $("#chat_txt_desktop");
+  const chat_box = $(replaceTag(original_chat_box[0], "textarea"));
+
+  chat_box.tabcomplete([
+    "((Apple Cider))",
+    "((Arnold Palmer))",
+    "((Arrowhead))",
+    "((Blue Dye))",
+    "((Carrot))",
+    "((Caterpillar))",
+    "((Cucumber))",
+    "((Eggplant))",
+    "((Feathers))",
+    "((Glass Orb))",
+    "((Gold Feather))",
+    "((Green Dye))",
+    "((Heart Container))",
+    "((Hops))",
+    "((Large Net))",
+    "((Leather))",
+    "((Leek))",
+    "((Mushroom Paste))",
+    "((Mushroom))",
+    "((Onion))",
+    "((Orange Juice))",
+    "((Peas))",
+    "((Peppers))",
+    "((Potato))",
+    "((Purple Dye))",
+    "((Purple Flower))",
+    "((Radish))",
+    "((Red Dye))",
+    "((Rope))",
+    "((Tomato))",
+    "((Twine))",
+    "((Shrimp-a-Plenty))",
+    "((Yarn))",
+  ]);
+
   let target = document.querySelector("#chatzoneDesktop");
   let observer = new MutationObserver((mutation) => {
     checkForPing($(mutation[0].addedNodes).filter(".chat-txt"));
