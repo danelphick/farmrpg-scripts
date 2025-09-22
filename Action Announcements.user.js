@@ -75,6 +75,7 @@ let gmc = new GM_config({
         GM_notification({
           text: "This is a test notification",
           title: "Test Notification",
+          tag: "farmrpg-action-announcements-test",
         });
       },
     },
@@ -184,52 +185,69 @@ function setVoice(...utterances) {
 
 setVoice();
 
+const ActionState = Object.freeze({
+  // A timer is set, waiting for the action to be ready.
+  WAITING: "waiting",
+  // The timer has been checked and has expired. A notification has be shown but not acted upon in
+  // any way.
+  READY: "ready",
+  // The timer has been acted upon either by completing the action (but not setting a new timer,
+  // e.g. season 25 minutes before cooking is done) or by clicking away the notification.
+  CLEARED: "cleared",
+  // This is used for cooking actions that are dependent on the main cooking action. Season can't be
+  // done if cooking will be finished before the 30 min timer is up.
+  NA: "N/A",
+});
+
+class ActionControl {
+  constructor(type, finishTimeName, initTime, addTime, speech) {
+    this.type = type;
+    this.button = null;
+    this.span = null;
+    this.finishTime = GM_getValue(finishTimeName);
+    this.state = "unknown";
+    this.initTime = initTime;
+    this.addTime = addTime;
+    this.speech = speech;
+    if (this.finishTime != null) {
+      this.state = ActionState.WAITING;
+    } else {
+      this.state = ActionState.CLEARED;
+    }
+  }
+
+  setFinishTime(finishTime) {
+    this.finishTime = finishTime;
+    this.state = ActionState.WAITING;
+  }
+
+  // This doesn't clear the timer, so if the window is reloaded while the timer is still showing, it
+  // will be re-shown.
+  setTimerComplete() {
+    this.state = ActionState.READY;
+  }
+
+  setTimerCleared() {
+    this.finishTime = null;
+    this.state = ActionState.CLEARED;
+  }
+
+  setTimerNA() {
+    this.finishTime = null;
+    this.state = ActionState.NA;
+  }
+
+  couldBeReady() {
+    return this.state == ActionState.WAITING || this.state == ActionState.READY;
+  }
+}
+
 const actionControls = {
-  cook: {
-    button: null,
-    span: null,
-    finishTime: GM_getValue("cook_finish_time", null),
-    initTime: null,
-    addTime: null,
-    announce: false,
-    speech: "Cooking done",
-  },
-  stir: {
-    button: null,
-    span: null,
-    finishTime: GM_getValue("stir_finish_time", null),
-    initTime: 60,
-    addTime: 15 * 60,
-    announce: false,
-    speech: "Time to stir",
-  },
-  taste: {
-    button: null,
-    span: null,
-    finishTime: GM_getValue("taste_finish_time", null),
-    initTime: 3 * 60,
-    addTime: 20 * 60,
-    announce: false,
-    speech: "Time to taste",
-  },
-  season: {
-    button: null,
-    span: null,
-    finishTime: GM_getValue("season_finish_time", null),
-    initTime: 5 * 60,
-    addTime: 30 * 60,
-    announce: false,
-    speech: "Time to season",
-  },
-  crop: {
-    button: null,
-    span: null,
-    finishTime: GM_getValue("crop_finish_time", null),
-    initTime: null,
-    addTime: null,
-    announce: false,
-    speech: "Crops done",
-  },
+  cook: new ActionControl("kitchen", "cook_finish_time", null, null, "Cooking done"),
+  stir: new ActionControl("kitchen", "stir_finish_time", 60, 15 * 60, "Time to stir"),
+  taste: new ActionControl("kitchen", "taste_finish_time", 3 * 60, 20 * 60, "Time to taste"),
+  season: new ActionControl("kitchen", "season_finish_time", 5 * 60, 30 * 60, "Time to season"),
+  crop: new ActionControl("farm", "crop_finish_time", null, null, "Crops done"),
 };
 
 function onPreferencesChanged() {
@@ -242,11 +260,9 @@ function onPreferencesChanged() {
 
 function addActionEventListener(activityName) {
   const control = actionControls[activityName];
-  control.button
-    .off("click.action-announcements")
-    .on("click.action-announcements", (_click) => {
-      setTimeout(() => setKitchenTimer(activityName, false), 10);
-    });
+  control.button.off("click.action-announcements").on("click.action-announcements", (_click) => {
+    setTimeout(() => setKitchenTimer(activityName, false), 10);
+  });
 }
 
 function setKitchenTimer(activityName, initCook) {
@@ -263,8 +279,6 @@ function setTimeLeft(activityName, timeLeft) {
     return;
   }
   setFinishTime(activityName, newFinishTime);
-
-  control.finishTime = newFinishTime;
 }
 
 function setFinishTime(activityName, finishTime) {
@@ -272,7 +286,7 @@ function setFinishTime(activityName, finishTime) {
   if (finishTime != null && !Number.isInteger(finishTime)) {
     finishTime = finishTime.getTime();
   }
-  control.finishTime = finishTime;
+  control.setFinishTime(finishTime);
   GM_setValue(`${activityName}_finish_time`, control.finishTime);
 }
 
@@ -327,19 +341,18 @@ function updateOvenTimers() {
   const timeSpans = contentBlock.find("span[data-countdown-to]");
   for (const timeSpan of timeSpans) {
     const actionCountdownTo = timeSpan.getAttribute("data-countdown-to");
-    const actionText =
-      timeSpan.parentElement.previousElementSibling.children[0].textContent;
+    const actionText = timeSpan.parentElement.previousElementSibling.children[0].textContent;
     const action = getFirstWord(actionText).toLowerCase();
     if (action in actionControls) {
       const actionReadyTime = parseTimeInGameTZ(actionCountdownTo).toJSDate();
-      actionControls[action].finishTime = actionReadyTime.getTime();
+      actionControls[action].setFinishTime(actionReadyTime.getTime());
     }
   }
   const actionButtons = contentBlock.find("button[data-oven]");
   for (const button of actionButtons) {
     const action = getFirstWord(button.textContent).toLowerCase();
     if (action in actionControls) {
-      actionControls[action].finishTime = new Date().getTime();
+      actionControls[action].setFinishTime(new Date().getTime());
     }
   }
 }
@@ -370,7 +383,7 @@ function addListenerToPlantAllButton() {
 
 function setRemainingTimeOnSpan(timeLeftSpan, timeRemaining) {
   if (timeRemaining <= 0) {
-    timeLeftSpan.text("Done!").css("color: red");
+    timeLeftSpan.text("Ready!").css("color", "green");
   } else {
     if (timeRemaining > 60000) {
       const seconds = Math.floor((timeRemaining % 60000) / 1000);
@@ -382,12 +395,12 @@ function setRemainingTimeOnSpan(timeLeftSpan, timeRemaining) {
     } else {
       timeLeftSpan.text(`${Math.ceil(timeRemaining / 1000)}s`);
     }
-    timeLeftSpan.css("color: white");
+    timeLeftSpan.css("color", "white");
   }
 }
 
 function setupTimerForControl(name, finishTime) {
-  actionControls[name].finishTime = finishTime;
+  actionControls[name].setFinishTime(finishTime);
   setRemainingTimeOnSpan(actionControls[name].span, "");
 }
 
@@ -399,36 +412,51 @@ function shouldShowNotification(announceSetting) {
   return announceSetting == "OS Notification" || announceSetting == "Both";
 }
 
-let showingNotification = false;
+let showingKitchenNotification = false;
+let lastKitchenNotification = "";
+let showingFarmNotification = false;
+let lastFarmNotification = "";
 
 function updateTimerSpans() {
-  if (actionControls.cook.finishTime == null) {
-    actionControls.stir.finishTime = "N/A";
-    actionControls.taste.finishTime = "N/A";
-    actionControls.season.finishTime = "N/A";
+  if (actionControls.cook.state != ActionState.WAITING) {
+    actionControls.stir.setTimerNA();
+    actionControls.taste.setTimerNA();
+    actionControls.season.setTimerNA();
   } else {
     for (const control of ["stir", "taste", "season"]) {
       if (actionControls[control].finishTime > actionControls.cook.finishTime) {
-        actionControls[control].finishTime = "N/A";
+        actionControls[control].setTimerNA();
       }
     }
   }
 
-  let notificationText = "";
+  let kitchenNotificationText = "";
+  let farmNotificationText = "";
   const currentTime = new Date().getTime();
   for (const control of Object.values(actionControls)) {
-    if (control.finishTime == null) continue;
+    if (!control.couldBeReady()) {
+      if (control.state == ActionState.NA) {
+        control.span.text("N/A").css("color", "gray");
+      }
+    }
+
     const timeLeft = control.finishTime - currentTime;
     if (timeLeft <= 0) {
-      control.finishTime = null;
-      control.span.text("Done!").css("color: red");
-
-      if (shouldSpeak(control.announce)) {
+      control.span.text("Done!").css("color", "green");
+      // Only announce when the timer first expires.
+      if (control.state == ActionState.WAITING && shouldSpeak(control.announce)) {
         speak(control.speech);
       }
       if (shouldShowNotification(control.announce)) {
-        notificationText += (notificationText ? "\n" : "") + control.speech;
+        if (control.type == "kitchen") {
+          kitchenNotificationText += (kitchenNotificationText ? "\n" : "") + control.speech;
+        } else if (control.type == "farm") {
+          farmNotificationText += (farmNotificationText ? "\n" : "") + control.speech;
+        } else {
+          console.error("Unknown control type:", control.type);
+        }
       }
+      control.setTimerComplete();
     } else {
       if (Number.isInteger(control.finishTime)) {
         setRemainingTimeOnSpan(control.span, Math.ceil(timeLeft));
@@ -437,21 +465,82 @@ function updateTimerSpans() {
       }
     }
   }
-  if (notificationText) {
-    GM_notification({
-      text: notificationText,
-      title: "FarmRPG",
-      tag: "farmrpg-action-announcements",
-      ondone: () => {
-        showingNotification = false;
-      },
-    });
-    showingNotification = true;
-  } else if (showingNotification) {
+  if (kitchenNotificationText) {
+    if (kitchenNotificationText != lastKitchenNotification) {
+      showNotification(
+        kitchenNotificationText,
+        "Kitchen",
+        () => {
+          for (const control of [actionControls.stir, actionControls.taste, actionControls.season, actionControls.cook]) {
+            if (control.state == ActionState.READY) {
+              control.setTimerCleared();
+            }
+          }
+          showingKitchenNotification = false;
+        },
+        function () {
+          window.focus();
+          if (window.location.href.indexOf("/kitchen.php") < 0) {
+            document.getElementsByClassName("fa-spoon")[0].click();
+          }
+        }
+      );
+      showingKitchenNotification = true;
+      lastKitchenNotification = kitchenNotificationText;
+    }
+  } else if (showingKitchenNotification) {
     // Clear any existing notification if there is nothing to show.
-    // TODO(how to cancel a notification???)
-    showingNotification = false;
+    clearNotification("Kitchen");
+    showingKitchenNotification = false;
+    lastKitchenNotification = "";
   }
+  if (farmNotificationText) {
+    if (farmNotificationText != lastFarmNotification) {
+      showNotification(
+        farmNotificationText,
+        "Farm",
+        () => {
+          showingFarmNotification = false;
+          actionControls.crop.setTimerCleared();
+        },
+        function () {
+          window.focus();
+          if (window.location.href.indexOf("/xfarm.php") < 0) {
+            document.getElementsByClassName("fa-home")[0].click();
+          }
+        }
+      );
+      showingFarmNotification = true;
+      lastFarmNotification = farmNotificationText;
+    }
+  } else if (showingFarmNotification) {
+    // Clear any existing notification if there is nothing to show.
+    clearNotification("Farm");
+    showingFarmNotification = false;
+    lastFarmNotification = "";
+  }
+}
+
+function showNotification(text, area, ondone, onclick) {
+  GM_notification({
+    text: text,
+    title: "FarmRPG " + area,
+    tag: "farmrpg-action-announcements-" + area,
+    ondone: ondone,
+    onclick: onclick,
+  });
+}
+
+function clearNotification(area) {
+  // There doesn't seem to be a direct way to clear a notification, but
+  // creating one with a short timeout causes one to be created that is never
+  // actually shown.
+  GM_notification({
+    text: "Clearing notification",
+    title: "FarmRPG " + area,
+    tag: "farmrpg-action-announcements-" + area,
+    timeout: 200,
+  });
 }
 
 function speak(text) {
