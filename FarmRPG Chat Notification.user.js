@@ -216,7 +216,8 @@ function checkForPing(chatList) {
 
 $(document).ready(function () {
   const original_chat_box = $("#chat_txt_desktop");
-  const chat_box = $(replaceTag(original_chat_box[0], "textarea"));
+  // const chat_box = $(replaceTag(original_chat_box[0], "textarea"));
+  const chat_box = original_chat_box;
 
   chat_box.tabcomplete([
     "((Apple Cider))",
