@@ -438,6 +438,7 @@ function updateTimerSpans() {
       if (control.state == ActionState.NA) {
         control.span.text("N/A").css("color", "gray");
       }
+      continue;
     }
 
     const timeLeft = control.finishTime - currentTime;
@@ -471,7 +472,12 @@ function updateTimerSpans() {
         kitchenNotificationText,
         "Kitchen",
         () => {
-          for (const control of [actionControls.stir, actionControls.taste, actionControls.season, actionControls.cook]) {
+          for (const control of [
+            actionControls.stir,
+            actionControls.taste,
+            actionControls.season,
+            actionControls.cook,
+          ]) {
             if (control.state == ActionState.READY) {
               control.setTimerCleared();
             }
