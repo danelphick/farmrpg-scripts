@@ -345,14 +345,18 @@ function updateOvenTimers() {
     const action = getFirstWord(actionText).toLowerCase();
     if (action in actionControls) {
       const actionReadyTime = parseTimeInGameTZ(actionCountdownTo).toJSDate();
-      actionControls[action].setFinishTime(actionReadyTime.getTime());
+      // Don't reset it to the same value as that would reset the state to WAITING and cause
+      // repeated announcements.
+      if (actionControls[action].finishTime != actionReadyTime.getTime()) {
+        setFinishTime(action, actionReadyTime.getTime());
+      }
     }
   }
   const actionButtons = contentBlock.find("button[data-oven]");
   for (const button of actionButtons) {
     const action = getFirstWord(button.textContent).toLowerCase();
     if (action in actionControls) {
-      actionControls[action].setFinishTime(new Date().getTime());
+      setFinishTime(action, new Date().getTime());
     }
   }
 }
