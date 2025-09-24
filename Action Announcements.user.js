@@ -538,9 +538,8 @@ function showNotification(text, area, ondone, onclick) {
 }
 
 function clearNotification(area) {
-  // There doesn't seem to be a direct way to clear a notification, but
-  // creating one with a short timeout causes one to be created that is never
-  // actually shown.
+  // There doesn't seem to be a direct way to clear a notification, but creating one (using the same
+  // tag) with a short timeout causes one to be created that is never actually shown.
   GM_notification({
     text: "Clearing notification",
     title: "FarmRPG " + area,
