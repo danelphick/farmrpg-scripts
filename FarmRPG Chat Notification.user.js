@@ -30,15 +30,6 @@ let prevNotifTime = DateTime.fromISO(
   GM_getValue("prevNotifTime", "1970-01-01T00:00:00Z")
 );
 
-$(`<style>
-#ccnotif+label {background-color: #400; color: #fb7a24}
-#ccnotif:checked +label {background-color: #041}
-.chat-txt { margin: 13px 0 13px 0; padding: 2px 2px 2px 2px;}
-.original-highlight-message {border-style: dashed; border-color: blue; border-width: 2px; padding: 0 }
-.tag-highlight-message {border-style: dashed; border-color: SteelBlue; border-width: 2px; padding: 0 }
-.author-highlight-message {border-style: dashed; border-color: Red; border-width: 2px; padding: 0 }
-</style>`).appendTo("head");
-
 let notifCheckbox = $(`<input>`)
   .prop("type", "checkbox")
   .prop("value", "1")
@@ -55,7 +46,35 @@ notifCheckbox.change((e) => {
   GM_setValue("notifEnabled", notifEnabled);
 });
 
+
 $("#desktopchatpanel .cclink").last().after(notifCheckbox, notifLabel);
+
+const chatPanelBgColor = $("#desktopchatpanel").css("background-color");
+// Calculate the sum of the RGB values to determine if it's light or dark.
+const approxBrightness = chatPanelBgColor
+  .substring(4, chatPanelBgColor.length - 1)
+  .replace(/ /g, "")
+  .split(",")
+  .reduce((sum, x) => sum + Number(x), 0);
+const darkMode = approxBrightness < 3 * 100;
+console.log("Dark Mode:", darkMode);
+if (darkMode) {
+  $(`<style>
+  #ccnotif+label {background-color: #400; color: #fb7a24}
+  #ccnotif:checked +label {background-color: #041}
+  .original-highlight-message { background-color: #222 }
+  .author-highlight-message { background-color: #220 }
+  .tag-highlight-message { background-color: #303 }
+  </style>`).appendTo("head");
+} else {
+  $(`<style>
+  #ccnotif+label {background-color: #400; color: #fb7a24}
+  #ccnotif:checked +label {background-color: #041}
+  .original-highlight-message { background-color: #ddd }
+  .author-highlight-message { background-color: #ddf }
+  .tag-highlight-message { background-color: #cfc }
+  </style>`).appendTo("head");
+}
 
 const messages = [];
 
