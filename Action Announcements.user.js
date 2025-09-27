@@ -1,7 +1,7 @@
 // ==UserScript==
+// @version      0.2
 // @name         Action Announcements
-// @version      0.1
-// @description  Announce when the cooking actions are ready
+// @description  Announce when the cooking/crop actions are ready
 // @author       danelphick@
 // @match        https://*.farmrpg.com/index.php
 // @match        https://*.farmrpg.com/
@@ -20,11 +20,12 @@
 
 const DateTime = luxon.DateTime;
 
-// TODO: This should convert to the user's timezone rather than hardcoding Europe/London.
+const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 function parseTimeInGameTZ(timeString) {
   return DateTime.fromISO(timeString, {
+    // Timezone used by FarmRPG for in-game times.
     zone: "America/Chicago",
-  }).setZone("Europe/London");
+  }).setZone(localTimeZone);
 }
 
 let myBox = null;
@@ -512,6 +513,7 @@ function updateTimerSpans() {
         () => {
           showingFarmNotification = false;
           actionControls.crop.setTimerCleared();
+          lastFarmNotification = "";
         },
         function () {
           window.focus();
