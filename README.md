@@ -13,6 +13,11 @@ has available cooking actions.
   both or none.
 - **Timers display:** In the bottom left corner, timers for each available action are shown.
 
+## Screenshot
+
+<img src="images/Timers.png" width="248"
+ alt="Screenshot of Action Announcements in action">
+
 ## Installation
 
 To use Action Announcements, you'll need to have Tampermonkey installed in your web browser.
