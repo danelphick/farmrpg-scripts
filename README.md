@@ -33,15 +33,15 @@ I think this will also work with Greasemonkey but I haven't tested it. Happy to 
 
 ### 2. Install Action Announcements
 
-1.  Click on this link to open the script in Tampermonkey:
-2.  [Action Announcements.user.js](https://github.com/danelphick/farmrpg/raw/main/Action%20Announcements.user.js).
-3.  Tampermonkey will open a new tab showing the script's source code.
-4.  Click the "Install" button.
+1. Click on this link to open the script in Tampermonkey:
+2. [Action Announcements.user.js](https://github.com/danelphick/farmrpg/raw/main/Action%20Announcements.user.js).
+3. Tampermonkey will open a new tab showing the script's source code.
+4. Click the "Install" button.
 
 ### 3. Verify Installation
 
-1.  Go to [FarmRPG](https://farmrpg.com/).
-2.  You should now see timers in the bottom left corner and see announcements when tracked actions
+1. Go to [FarmRPG](https://farmrpg.com/).
+2. You should now see timers in the bottom left corner and see announcements when tracked actions
     are ready.
 
 ## Usage
@@ -68,6 +68,9 @@ always displayed.
 The script works by reading the pages that you look at, so it cannot see actions performed outside
 of FarmRPG in your browser. If you also play on mobile or another browser, it will get out of sync
 and you will have to go back to the farm/kitchen/oven pages for the timers to be picked up again.
+
+The script also assumes that you're only cooking one type of meal at a time and planting just one
+crop at a time. If that's not the case, it will probably give you weird results.
 
 ### OS Notifications
 
