@@ -32,10 +32,11 @@ let myBox = null;
 const synth = window.speechSynthesis;
 let pendingUtterances = [];
 let voice = null;
+let speechVolume = 1.0;
 
-announcementOptions = ["None", "Speech", "OS Notification", "Both"];
+const announcementOptions = ["None", "Speech", "OS Notification", "Both"];
 
-let gmc = new GM_config({
+const gmc = new GM_config({
   id: "actions-announcements",
   title: "Action Announcements Settings",
   fields: {
@@ -69,6 +70,14 @@ let gmc = new GM_config({
       options: announcementOptions,
       default: "speech",
     },
+    speechVolume: {
+      label: "Speech Volume",
+      type: "range",
+      default: 1.0,
+      min: 0.0,
+      max: 1.0,
+      step: 0.1,
+    },
     testNotifications: {
       label: "Test Notifications",
       type: "button",
@@ -84,7 +93,53 @@ let gmc = new GM_config({
       label: "Test Speech Notifications",
       type: "button",
       click: function () {
-        speak("This is a test speech notification");
+        speak("This is a test speech notification", parseFloat(gmc.fields.speechVolume.toValue()));
+      },
+    },
+  },
+  types: {
+    range: {
+      default: 1.0,
+      toNode: function (configId) {
+        const retNode = this.create("div", {
+          className: "config_var",
+          id: `${configId}_${this.id}_var`,
+          title: this.settings.title || "",
+        });
+
+        const labelNode = this.create("label", {
+            for: "speechVolume",
+            className: "field_label",
+            innerHTML: this.settings.label,
+          }
+        );
+        retNode.appendChild(labelNode);
+        const inputNode = this.create("input", {
+            type: "range",
+            name: "speechVolume",
+            min: this.settings.min,
+            max: this.settings.max,
+            step: this.settings.step,
+            value: this.value,
+          }
+        );
+        retNode.appendChild(labelNode);
+        retNode.appendChild(inputNode);
+        return retNode;
+      },
+      toValue: function () {
+        if (!this.wrapper) {
+          return null;
+        }
+        const input = this.wrapper.getElementsByTagName('input')[0];
+        return input.value;
+      },
+      reset: function () {
+        if (!this.wrapper) {
+          return;
+        }
+        const input = this.wrapper.getElementsByTagName('input')[0];
+        input.value = this.settings.default.toString();
       },
     },
   },
@@ -93,7 +148,7 @@ let gmc = new GM_config({
      left: 50%;
      border: 1px solid rgb(0, 0, 0);
      width: 450px;
-     height: 300px;
+     height: 340px;
      opacity: 1;
      overflow: auto;
      padding: 0px;
@@ -257,6 +312,7 @@ function onPreferencesChanged() {
   actionControls.season.announce = gmc.get("enableSeasonAnnouncements");
   actionControls.cook.announce = gmc.get("enableCookAnnouncements");
   actionControls.crop.announce = gmc.get("enableCropsAnnouncements");
+  speechVolume = gmc.get("speechVolume");
 }
 
 function addActionEventListener(activityName) {
@@ -447,6 +503,7 @@ function updateTimerSpans() {
     }
 
     const timeLeft = control.finishTime - currentTime;
+    // console.log(`${control.type} time left: ${timeLeft}`);
     if (timeLeft <= 0) {
       control.span.text("Done!").css("color", "green");
       // Only announce when the timer first expires.
@@ -554,12 +611,17 @@ function clearNotification(area) {
   });
 }
 
-function speak(text) {
+function speak(text, volume) {
   // Sometimes the speech gets stuck saying it's speaking and never resets.
   // This prevents any new speech from starting.
   synth.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   setVoice(utterance);
+  if (volume != null) {
+    utterance.volume = volume;
+  } else {
+    utterance.volume = speechVolume;
+  }
   synth.speak(utterance);
 }
 
