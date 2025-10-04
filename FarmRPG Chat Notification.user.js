@@ -26,9 +26,7 @@ today.setUTCHours(0);
 today.setUTCMinutes(0);
 today.setUTCSeconds(0);
 
-let prevNotifTime = DateTime.fromISO(
-  GM_getValue("prevNotifTime", "1970-01-01T00:00:00Z")
-);
+let prevNotifTime = DateTime.fromISO(GM_getValue("prevNotifTime", "1970-01-01T00:00:00Z"));
 
 let notifCheckbox = $(`<input>`)
   .prop("type", "checkbox")
@@ -37,15 +35,11 @@ let notifCheckbox = $(`<input>`)
   .prop("name", "ccnotif")
   .prop("id", "ccnotif")
   .hide();
-let notifLabel = $(`<label>`)
-  .prop("for", "ccnotif")
-  .addClass("cclink")
-  .text("Notify");
+let notifLabel = $(`<label>`).prop("for", "ccnotif").addClass("cclink").text("Notify");
 notifCheckbox.change((e) => {
   notifEnabled = e.currentTarget.checked;
   GM_setValue("notifEnabled", notifEnabled);
 });
-
 
 $("#desktopchatpanel .cclink").last().after(notifCheckbox, notifLabel);
 
@@ -238,41 +232,44 @@ $(document).ready(function () {
   // const chat_box = $(replaceTag(original_chat_box[0], "textarea"));
   const chat_box = original_chat_box;
 
-  chat_box.tabcomplete([
-    "((Apple Cider))",
-    "((Arnold Palmer))",
-    "((Arrowhead))",
-    "((Blue Dye))",
-    "((Carrot))",
-    "((Caterpillar))",
-    "((Cucumber))",
-    "((Eggplant))",
-    "((Feathers))",
-    "((Glass Orb))",
-    "((Gold Feather))",
-    "((Green Dye))",
-    "((Heart Container))",
-    "((Hops))",
-    "((Large Net))",
-    "((Leather))",
-    "((Leek))",
-    "((Mushroom Paste))",
-    "((Mushroom))",
-    "((Onion))",
-    "((Orange Juice))",
-    "((Peas))",
-    "((Peppers))",
-    "((Potato))",
-    "((Purple Dye))",
-    "((Purple Flower))",
-    "((Radish))",
-    "((Red Dye))",
-    "((Rope))",
-    "((Tomato))",
-    "((Twine))",
-    "((Shrimp-a-Plenty))",
-    "((Yarn))",
-  ]);
+  chat_box.tabcomplete(
+    [
+      "((Apple Cider))",
+      "((Arnold Palmer))",
+      "((Arrowhead))",
+      "((Blue Dye))",
+      "((Carrot))",
+      "((Caterpillar))",
+      "((Cucumber))",
+      "((Eggplant))",
+      "((Feathers))",
+      "((Glass Orb))",
+      "((Gold Feather))",
+      "((Green Dye))",
+      "((Heart Container))",
+      "((Hops))",
+      "((Large Net))",
+      "((Leather))",
+      "((Leek))",
+      "((Mushroom Paste))",
+      "((Mushroom))",
+      "((Onion))",
+      "((Orange Juice))",
+      "((Peas))",
+      "((Peppers))",
+      "((Potato))",
+      "((Purple Dye))",
+      "((Purple Flower))",
+      "((Radish))",
+      "((Red Dye))",
+      "((Rope))",
+      "((Tomato))",
+      "((Twine))",
+      "((Shrimp-a-Plenty))",
+      "((Yarn))",
+    ],
+    { hint: "select" }
+  );
 
   let target = document.querySelector("#chatzoneDesktop");
   let observer = new MutationObserver((mutation) => {
