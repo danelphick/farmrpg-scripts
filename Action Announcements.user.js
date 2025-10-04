@@ -722,11 +722,11 @@ $(document).ready(function () {
     font-size: 0.8em;
     padding: 10px;
   '>
-    <div id='crop-time-left'>Crop Time Left: <span id="crop-time">Unknown</span></div>
+    <div id='crop-time-left' style='margin-bottom: 0.5em'>Crop Time Left: <span id="crop-time">Unknown</span></div>
+    <div id='cook-time-left'>Cook Time Left: <span id="cook-time">Unknown</span></div>
     <div id='stir-time-left'>Time till stir: <span id="stir-time">Unknown</span></div>
     <div id='taste-time-left'>Time till taste: <span id="taste-time">Unknown</span></div>
-    <div id='season-time-left'>Time till season: <span id="season-time">Unknown</span></div>
-    <div id='cook-time-left'>Cook Time Left: <span id="cook-time">Unknown</span></div>
+    <div id='season-time-left' style='margin-bottom: 0.5em'>Time till season: <span id="season-time">Unknown</span></div>
     <button id='open-config'>Open Settings</button>
   </div>
   `);
