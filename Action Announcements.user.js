@@ -396,6 +396,7 @@ function updateOvenTimers() {
   let contentBlock = $(oven).find("div.content-block");
 
   const timeSpans = contentBlock.find("span[data-countdown-to]");
+  notSeenActions = ["stir", "taste", "season"];
   for (const timeSpan of timeSpans) {
     const actionCountdownTo = timeSpan.getAttribute("data-countdown-to");
     const actionText = timeSpan.parentElement.previousElementSibling.children[0].textContent;
@@ -407,14 +408,23 @@ function updateOvenTimers() {
       if (actionControls[action].finishTime != actionReadyTime.getTime()) {
         setFinishTime(action, actionReadyTime.getTime());
       }
+      notSeenActions.splice(notSeenActions.indexOf(action), 1);
     }
   }
+
   const actionButtons = contentBlock.find("button[data-oven]");
   for (const button of actionButtons) {
     const action = getFirstWord(button.textContent).toLowerCase();
     if (action in actionControls) {
       setFinishTime(action, new Date().getTime());
+      notSeenActions.splice(notSeenActions.indexOf(action), 1);
     }
+  }
+
+  // If there an action never appears on the oven screen, then it means that action won't be
+  // available again before the meal is cooked, so mark it as N/A.
+  for (const action of notSeenActions) {
+    actionControls[action].setTimerNA();
   }
 }
 
