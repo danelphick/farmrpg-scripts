@@ -51,7 +51,6 @@ const approxBrightness = chatPanelBgColor
   .split(",")
   .reduce((sum, x) => sum + Number(x), 0);
 const darkMode = approxBrightness < 3 * 100;
-console.log("Dark Mode:", darkMode);
 if (darkMode) {
   $(`<style>
   #ccnotif+label {background-color: #400; color: #fb7a24}
