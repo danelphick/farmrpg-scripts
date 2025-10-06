@@ -108,21 +108,19 @@ const gmc = new GM_config({
         });
 
         const labelNode = this.create("label", {
-            for: "speechVolume",
-            className: "field_label",
-            innerHTML: this.settings.label,
-          }
-        );
+          for: "speechVolume",
+          className: "field_label",
+          innerHTML: this.settings.label,
+        });
         retNode.appendChild(labelNode);
         const inputNode = this.create("input", {
-            type: "range",
-            name: "speechVolume",
-            min: this.settings.min,
-            max: this.settings.max,
-            step: this.settings.step,
-            value: this.value,
-          }
-        );
+          type: "range",
+          name: "speechVolume",
+          min: this.settings.min,
+          max: this.settings.max,
+          step: this.settings.step,
+          value: this.value,
+        });
         retNode.appendChild(labelNode);
         retNode.appendChild(inputNode);
         return retNode;
@@ -131,14 +129,14 @@ const gmc = new GM_config({
         if (!this.wrapper) {
           return null;
         }
-        const input = this.wrapper.getElementsByTagName('input')[0];
+        const input = this.wrapper.getElementsByTagName("input")[0];
         return input.value;
       },
       reset: function () {
         if (!this.wrapper) {
           return;
         }
-        const input = this.wrapper.getElementsByTagName('input')[0];
+        const input = this.wrapper.getElementsByTagName("input")[0];
         input.value = this.settings.default.toString();
       },
     },
@@ -273,6 +271,9 @@ class ActionControl {
   }
 
   setFinishTime(finishTime) {
+    if (finishTime == null) {
+      throw new Error("finishTime can't be null");
+    }
     this.finishTime = finishTime;
     this.state = ActionState.WAITING;
   }
@@ -380,7 +381,7 @@ function updateKitchenButtons() {
     // If no finish time is available then nothing is cooking so stir/taste/season can't be
     // possible.
     for (const control of ["stir", "taste", "season"]) {
-      setFinishTime(control, null);
+      actionControls[control].setTimerNA();
     }
   }
 }
@@ -489,15 +490,12 @@ let showingFarmNotification = false;
 let lastFarmNotification = "";
 
 function updateTimerSpans() {
-  if (actionControls.cook.state != ActionState.WAITING) {
-    actionControls.stir.setTimerNA();
-    actionControls.taste.setTimerNA();
-    actionControls.season.setTimerNA();
-  } else {
-    for (const control of ["stir", "taste", "season"]) {
-      if (actionControls[control].finishTime > actionControls.cook.finishTime) {
-        actionControls[control].setTimerNA();
-      }
+  for (const control of ["stir", "taste", "season"]) {
+    if (
+      actionControls.cook.state != ActionState.WAITING ||
+      actionControls[control].finishTime > actionControls.cook.finishTime
+    ) {
+      actionControls[control].setTimerNA();
     }
   }
 
@@ -513,7 +511,6 @@ function updateTimerSpans() {
     }
 
     const timeLeft = control.finishTime - currentTime;
-    // console.log(`${control.type} time left: ${timeLeft}`);
     if (timeLeft <= 0) {
       control.span.text("Done!").css("color", "green");
       // Only announce when the timer first expires.
@@ -544,6 +541,9 @@ function updateTimerSpans() {
         kitchenNotificationText,
         "Kitchen",
         () => {
+          showingKitchenNotification = false;
+        },
+        function () {
           for (const control of [
             actionControls.stir,
             actionControls.taste,
@@ -554,9 +554,6 @@ function updateTimerSpans() {
               control.setTimerCleared();
             }
           }
-          showingKitchenNotification = false;
-        },
-        function () {
           window.focus();
           if (window.location.href.indexOf("/kitchen.php") < 0) {
             document.getElementsByClassName("fa-spoon")[0].click();
@@ -579,10 +576,10 @@ function updateTimerSpans() {
         "Farm",
         () => {
           showingFarmNotification = false;
-          actionControls.crop.setTimerCleared();
           lastFarmNotification = "";
         },
         function () {
+          actionControls.crop.setTimerCleared();
           window.focus();
           if (window.location.href.indexOf("/xfarm.php") < 0) {
             document.getElementsByClassName("fa-home")[0].click();
@@ -738,6 +735,7 @@ $(document).ready(function () {
     <div id='taste-time-left'>Time till taste: <span id="taste-time">Unknown</span></div>
     <div id='season-time-left' style='margin-bottom: 0.5em'>Time till season: <span id="season-time">Unknown</span></div>
     <button id='open-config'>Open Settings</button>
+    <!-- <button id='debug'>Dump Debug</button> -->
   </div>
   `);
 
@@ -747,6 +745,12 @@ $(document).ready(function () {
     } else {
       gmc.close();
     }
+  });
+
+  // This is useful for debugging but does nothing if the button is commented out in the HTML above.
+  $("#debug").on("click", () => {
+    console.log("Action Announcements Debug Info:");
+    console.log(actionControls);
   });
 
   actionControls.stir.span = $("#stir-time-left span");
