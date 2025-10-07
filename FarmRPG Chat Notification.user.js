@@ -58,6 +58,7 @@ if (darkMode) {
   .original-highlight-message { background-color: #222 }
   .author-highlight-message { background-color: #220 }
   .tag-highlight-message { background-color: #303 }
+  .author-tagged-highlight-message { background-color: #20302a }
   </style>`).appendTo("head");
 } else {
   $(`<style>
@@ -66,6 +67,7 @@ if (darkMode) {
   .original-highlight-message { background-color: #ddd }
   .author-highlight-message { background-color: #ddf }
   .tag-highlight-message { background-color: #cfc }
+  .author-tagged-highlight-message { background-color: #8db }
   </style>`).appendTo("head");
 }
 
@@ -105,6 +107,17 @@ function getThread(author1, author2) {
   return messages;
 }
 
+function getChatTagsFromChat(chat) {
+  let chatTags = [];
+  for (const anchor of $(chat.childNodes[7]).children("a")) {
+    if (anchor.href.indexOf("profile.php") >= 0) {
+      const tag = anchor.textContent.substr(1);
+      chatTags.push(tag);
+    }
+  }
+  return chatTags;
+}
+
 function getChatAuthorFromChat(chat) {
   let chatAuthor = chat.childNodes[2].textContent;
   const mailBoxIndicator = chatAuthor.indexOf("[");
@@ -119,16 +132,22 @@ let currentHighlightedElements = [];
 
 function highlightChatsFromChat(chat) {
   currentHighlightedElements = [];
-  let chatAuthor = getChatAuthorFromChat(chat);
-  const thread = getThread(chatAuthor, "");
+  const chatAuthor = getChatAuthorFromChat(chat);
+  const chatTags = getChatTagsFromChat(chat);
+  const chatTag = chatTags.length > 0 ? chatTags[0] : "";
+
+  console.log("tags:", chatTags);
+  const thread = getThread(chatAuthor, chatTag);
   for (const m of thread) {
     const elm = m[3];
     if (elm == chat || elm.textContent == chat.textContent) {
       $(elm).addClass("original-highlight-message");
     } else if (m[1] == chatAuthor) {
       $(elm).addClass("author-highlight-message");
-    } else {
+    } else if (m[1] == chatTag) {
       $(elm).addClass("tag-highlight-message");
+    } else {
+      $(elm).addClass("author-tagged-highlight-message");
     }
     currentHighlightedElements.push(elm);
   }
@@ -140,6 +159,7 @@ function selectChat(event) {
     $(elm).removeClass("original-highlight-message");
     $(elm).removeClass("author-highlight-message");
     $(elm).removeClass("tag-highlight-message");
+    $(elm).removeClass("author-tagged-highlight-message");
   }
   currentHighlightedElements = [];
   const chat = event.currentTarget;
