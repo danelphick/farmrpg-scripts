@@ -136,7 +136,6 @@ function highlightChatsFromChat(chat) {
   const chatTags = getChatTagsFromChat(chat);
   const chatTag = chatTags.length > 0 ? chatTags[0] : "";
 
-  console.log("tags:", chatTags);
   const thread = getThread(chatAuthor, chatTag);
   for (const m of thread) {
     const elm = m[3];
