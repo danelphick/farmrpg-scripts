@@ -199,16 +199,16 @@ function waitForElm(selector) {
   });
 }
 
-function onVoicesChanged(_event) {
-  if (synth.getVoices().length) {
-    synth.removeEventListener("voiceschanged", onVoicesChanged);
-
-    setVoice(...pendingUtterances);
-    pendingUtterances = [];
-  }
-}
-
 function setVoice(...utterances) {
+  function onVoicesChanged(_event) {
+    if (synth.getVoices().length) {
+      synth.removeEventListener("voiceschanged", onVoicesChanged);
+
+      setVoice(...pendingUtterances);
+      pendingUtterances = [];
+    }
+  }
+
   if (voice) {
     for (const utterance of utterances) {
       utterance.voice = voice;
@@ -619,15 +619,26 @@ function clearNotification(area) {
 }
 
 function speak(text, volume) {
-  // Sometimes the speech gets stuck saying it's speaking and never resets.
-  // This prevents any new speech from starting.
-  synth.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   setVoice(utterance);
   if (volume != null) {
     utterance.volume = volume;
   } else {
     utterance.volume = speechVolume;
+  }
+  if (synth.speaking) {
+    // Sometimes the speech gets stuck saying it's speaking and never resets. This prevents any new
+    // speech from starting.
+    let done = false;
+    utterance.onend = function () {
+      done = true;
+    };
+    setTimeout(() => {
+      if (!done) {
+        synth.cancel();
+        console.log("Speech stuck, cancelling");
+      }
+    }, 10000);
   }
   synth.speak(utterance);
 }
