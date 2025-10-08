@@ -286,7 +286,10 @@ $(document).ready(function () {
     "Yarn",
   ];
 
-  chat_box.tabcomplete(complete_items.map((x) => `((${x}))`), { hint: "select" });
+  chat_box.tabcomplete(
+    complete_items.map((x) => `((${x}))`),
+    { hint: "select" }
+  );
 
   let target = document.querySelector("#chatzoneDesktop");
   let observer = new MutationObserver((mutation) => {
