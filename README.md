@@ -29,7 +29,8 @@ If you don't already have Tampermonkey, you can install it from your browser's e
 - [**Chrome**](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo?hl=en)
 - [**Firefox**](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/)
 
-I think this will also work with Greasemonkey but I haven't tested it. Happy to make changes, if you find issues with Greasemonkey and this script.
+I think this will also work with Greasemonkey but I haven't tested it. Happy to make changes, if you
+find issues with Greasemonkey and this script.
 
 ### 2. Install Action Announcements
 
