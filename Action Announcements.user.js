@@ -29,10 +29,13 @@ function parseTimeInGameTZ(timeString) {
 }
 
 let myBox = null;
+
 const synth = window.speechSynthesis;
-let pendingUtterances = [];
 let voice = null;
+
 let speechVolume = 1.0;
+let voiceLocale = null;
+let voiceName = null;
 
 const announcementOptions = ["None", "Speech", "OS Notification", "Both"];
 
@@ -78,6 +81,17 @@ const gmc = new GM_config({
       max: 1.0,
       step: 0.1,
     },
+    speechLocale: {
+      label: "Speech Locale Filter",
+      type: "select",
+      options: ["all", "en-GB", "en-US"],
+      default: "en-GB",
+    },
+    speechVoice: {
+      label: "Voice",
+      type: "select",
+      options: ["Google US English"],
+    },
     testNotifications: {
       label: "Test Notifications",
       type: "button",
@@ -93,7 +107,12 @@ const gmc = new GM_config({
       label: "Test Speech Notifications",
       type: "button",
       click: function () {
-        speak("This is a test speech notification", parseFloat(gmc.fields.speechVolume.toValue()));
+        const configVoice = gmc.get("speechVoice", true);
+        speak(
+          "This is a test speech notification",
+          parseFloat(gmc.fields.speechVolume.toValue()),
+          synth.getVoices().find((v) => v.name == configVoice)
+        );
       },
     },
   },
@@ -146,7 +165,7 @@ const gmc = new GM_config({
      left: 50%;
      border: 1px solid rgb(0, 0, 0);
      width: 450px;
-     height: 340px;
+     height: 380px;
      opacity: 1;
      overflow: auto;
      padding: 0px;
@@ -170,8 +189,9 @@ const gmc = new GM_config({
     }
   `,
   events: {
-    init: onPreferencesChanged,
-    save: onPreferencesChanged,
+    init: onInitPreferences,
+    save: onSavePreferences,
+    open: onOpenPreferences,
   },
 });
 
@@ -199,45 +219,79 @@ function waitForElm(selector) {
   });
 }
 
-function setVoice(...utterances) {
-  function onVoicesChanged(_event) {
-    if (synth.getVoices().length) {
-      synth.removeEventListener("voiceschanged", onVoicesChanged);
+let availableLocales = [];
+let availableVoiceNames = [];
 
-      setVoice(...pendingUtterances);
-      pendingUtterances = [];
-    }
+function shallowCompareArrays(a, b) {
+  if (a.length != b.length) {
+    return false;
   }
+  return a.every((v, i) => v === b[i]);
+}
 
-  if (voice) {
-    for (const utterance of utterances) {
-      utterance.voice = voice;
-    }
+function setupVoicesAndLanguages(tempFilter) {
+  let availableVoices = synth.getVoices();
+  if (tempFilter == null) {
+    tempFilter = voiceLocale;
+  }
+  let newAvailableLocales = [...new Set(availableVoices.map((v) => v.lang))];
+  let newAvailableVoiceNames = availableVoices
+    .filter((v) => tempFilter == "all" || tempFilter == v.lang)
+    .map((v) => v.name);
+
+  const localesChanged = !shallowCompareArrays(availableLocales, newAvailableLocales);
+  if (!localesChanged && shallowCompareArrays(availableVoiceNames, newAvailableVoiceNames)) {
     return;
   }
 
-  if (!synth.getVoices().length) {
-    if (pendingUtterances.length) {
-      pendingUtterances = pendingUtterances.concat(utterances);
-    } else {
-      pendingUtterances = utterances;
-      synth.addEventListener("voiceschanged", onVoicesChanged);
-    }
-    return;
-  }
+  availableLocales = newAvailableLocales;
+  availableVoiceNames = newAvailableVoiceNames;
+  console.log(`Locales changed: ${localesChanged}`);
 
-  for (const v of synth.getVoices()) {
-    if (v.lang == "en-GB" && !v.localService) {
-      voice = v;
-      for (const utterance of utterances) {
-        utterance.voice = voice;
+  if (availableLocales.length > 0) {
+    const fields = {
+      speechVoice: {
+        label: "Voice",
+        type: "select",
+        options: availableVoiceNames,
+        default: availableVoiceNames[0],
+      },
+    };
+
+    if (localesChanged) {
+      fields["speechLocale"] = {
+        label: "Speech Locale Filter",
+        type: "select",
+        options: ["all", ...availableLocales],
+        default: tempFilter,
+        value: tempFilter,
+      };
+    }
+
+    const wasOpen = gmc.frame != null;
+    if (wasOpen) {
+      gmc.close();
+    }
+    gmc.init({
+      id: gmc.id,
+      frameStyle: gmc.frameStyle,
+      fields: fields,
+    });
+
+    if (wasOpen) {
+      gmc.open();
+
+      // Restore the speechLocale value to any temporary filter that was passed in.
+      const localeNode = gmc.fields["speechLocale"].node;
+      if (localeNode) {
+        localeNode.value = tempFilter;
       }
-      break;
     }
   }
 }
 
-setVoice();
+synth.addEventListener("voiceschanged", () => setupVoicesAndLanguages());
+setupVoicesAndLanguages();
 
 const ActionState = Object.freeze({
   // A timer is set, waiting for the action to be ready.
@@ -307,13 +361,39 @@ const actionControls = {
   crop: new ActionControl("farm", "crop_finish_time", null, null, "Crops done"),
 };
 
+let preferencesHaveBeenInitialized = false;
+function onInitPreferences() {
+  onPreferencesChanged();
+  preferencesHaveBeenInitialized = true;
+}
+
+function onOpenPreferences() {
+  // When locale changes, update options for voice by calling init.
+  $(gmc.fields["speechLocale"].node).on("change", (event) => {
+    console.log("Locale changed to", event.target.value);
+    setupVoicesAndLanguages(event.target.value);
+  });
+}
+
+function onSavePreferences() {
+  onPreferencesChanged();
+
+  voiceName = gmc.get("speechVoice");
+  voiceLocale = gmc.get("speechLocale");
+  voice = synth.getVoices().find((v) => v.name == voiceName);
+  console.log("Voice set to", voiceLocale, voiceName, ":", voice);
+}
+
 function onPreferencesChanged() {
   actionControls.stir.announce = gmc.get("enableStirAnnouncements");
   actionControls.taste.announce = gmc.get("enableTasteAnnouncements");
   actionControls.season.announce = gmc.get("enableSeasonAnnouncements");
   actionControls.cook.announce = gmc.get("enableCookAnnouncements");
   actionControls.crop.announce = gmc.get("enableCropsAnnouncements");
+
   speechVolume = gmc.get("speechVolume");
+  voiceLocale = gmc.get("speechLocale");
+  voiceName = gmc.get("speechVoice");
 }
 
 function addActionEventListener(activityName) {
@@ -618,14 +698,19 @@ function clearNotification(area) {
   });
 }
 
-function speak(text, volume) {
+function speak(text, volume, alternateVoice) {
   const utterance = new SpeechSynthesisUtterance(text);
-  setVoice(utterance);
   if (volume != null) {
     utterance.volume = volume;
   } else {
     utterance.volume = speechVolume;
   }
+  if (alternateVoice != null) {
+    utterance.voice = alternateVoice;
+  } else {
+    utterance.voice = voice;
+  }
+
   if (synth.speaking) {
     // Sometimes the speech gets stuck saying it's speaking and never resets. This prevents any new
     // speech from starting.
@@ -740,11 +825,15 @@ $(document).ready(function () {
     font-size: 0.8em;
     padding: 10px;
   '>
-    <div id='crop-time-left' style='margin-bottom: 0.5em'>Crop Time Left: <span id="crop-time">Unknown</span></div>
+    <div id='crop-time-left' style='margin-bottom: 0.5em'>
+      Crop Time Left: <span id="crop-time">Unknown</span>
+    </div>
     <div id='cook-time-left'>Cook Time Left: <span id="cook-time">Unknown</span></div>
     <div id='stir-time-left'>Time till stir: <span id="stir-time">Unknown</span></div>
     <div id='taste-time-left'>Time till taste: <span id="taste-time">Unknown</span></div>
-    <div id='season-time-left' style='margin-bottom: 0.5em'>Time till season: <span id="season-time">Unknown</span></div>
+    <div id='season-time-left' style='margin-bottom: 0.5em'>
+      Time till season: <span id="season-time">Unknown</span>
+    </div>
     <button id='open-config'>Open Settings</button>
     <!-- <button id='debug'>Dump Debug</button> -->
   </div>
