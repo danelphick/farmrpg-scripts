@@ -275,7 +275,7 @@ function setupVoicesAndLanguages(tempFilter) {
     gmc.init({
       id: gmc.id,
       frameStyle: gmc.frameStyle,
-      fields: fields,
+      fields: fields
     });
 
     if (wasOpen) {
@@ -537,9 +537,16 @@ function setRemainingTimeOnSpan(timeLeftSpan, timeRemaining) {
   if (timeRemaining <= 0) {
     timeLeftSpan.text("Ready!").css("color", "green");
   } else {
-    if (timeRemaining > 60000) {
+    if (timeRemaining > 3600000) {
+      const minutes = Math.floor((timeRemaining % 3600000) / 60000);
+      if (minutes == 0) {
+        timeLeftSpan.text(`${Math.floor(timeRemaining / 3600000)}h`);
+      } else {
+        timeLeftSpan.text(`${Math.floor(timeRemaining / 3600000)}h ${minutes}m`);
+      }
+    } else if (timeRemaining > 60000) {
       const seconds = Math.floor((timeRemaining % 60000) / 1000);
-      if (seconds == 0) {
+      if (seconds == 0 || timeRemaining > 60000 * 10) {
         timeLeftSpan.text(`${Math.floor(timeRemaining / 60000)}m`);
       } else {
         timeLeftSpan.text(`${Math.floor(timeRemaining / 60000)}m ${seconds}s`);
