@@ -538,7 +538,7 @@ function setRemainingTimeOnSpan(timeLeftSpan, timeRemaining) {
     timeLeftSpan.text("Ready!").css("color", "green");
   } else {
     if (timeRemaining > 3600000) {
-      const minutes = Math.floor((timeRemaining % 3600000) / 60000);
+      const minutes = Math.round((timeRemaining % 3600000) / 60000);
       if (minutes == 0) {
         timeLeftSpan.text(`${Math.floor(timeRemaining / 3600000)}h`);
       } else {
@@ -547,7 +547,7 @@ function setRemainingTimeOnSpan(timeLeftSpan, timeRemaining) {
     } else if (timeRemaining > 60000) {
       const seconds = Math.floor((timeRemaining % 60000) / 1000);
       if (seconds == 0 || timeRemaining > 60000 * 10) {
-        timeLeftSpan.text(`${Math.floor(timeRemaining / 60000)}m`);
+        timeLeftSpan.text(`${Math.round(timeRemaining / 60000)}m`);
       } else {
         timeLeftSpan.text(`${Math.floor(timeRemaining / 60000)}m ${seconds}s`);
       }
