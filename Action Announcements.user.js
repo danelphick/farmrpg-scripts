@@ -409,11 +409,11 @@ function setKitchenTimer(activityName, initCook) {
   setTimeLeft(activityName, timeLeft);
 }
 
-function setTimeLeft(activityName, timeLeft) {
+function setTimeLeft(activityName, timeLeft, override=false) {
   control = actionControls[activityName];
   const now = new Date().getTime();
   const newFinishTime = now + timeLeft * 1000;
-  if (control.finishTime != null && control.finishTime > now) {
+  if (!override && control.finishTime != null && control.finishTime > now) {
     return;
   }
   setFinishTime(activityName, newFinishTime);
@@ -518,7 +518,7 @@ function addListenerToPlantAllButton() {
 
   waitForElm("#croparea .concrop").then((crop) => {
     const time = Number(crop.getAttribute("data-seconds"));
-    setTimeLeft("crop", time);
+    setTimeLeft("crop", time, true);
   });
 
   plantAll.off("click.action-announcements");
@@ -527,7 +527,7 @@ function addListenerToPlantAllButton() {
     setTimeout(() => {
       waitForElm("#croparea .concrop").then((crop) => {
         const time = Number(crop.getAttribute("data-seconds"));
-        setTimeLeft("crop", time);
+        setTimeLeft("crop", time, true);
       });
     }, 0);
   });
