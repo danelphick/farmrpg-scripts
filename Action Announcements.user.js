@@ -416,10 +416,8 @@ function setTimeLeft(activityName, timeLeft, override=false) {
   control = actionControls[activityName];
   const now = new Date().getTime();
   const newFinishTime = now + timeLeft * 1000;
-  console.log(`setTimeLeft(${activityName}, ${timeLeft}, ${override})`)
 
   if (!override && control.finishTime != null && control.finishTime > now) {
-    console.log(`aborted`)
     return;
   }
   setFinishTime(activityName, newFinishTime);
@@ -473,7 +471,6 @@ function updateKitchenButtons() {
     // possible.
     for (const control of ["stir", "taste", "season"]) {
       actionControls[control].setTimerNA();
-      console.log("Nothing is cooking.")
     }
   }
 }
@@ -517,7 +514,6 @@ function updateOvenTimers() {
   // If an action doesn't appears on the oven screen, that it means that action won't be available
   // again before the meal is cooked, so mark it as N/A.
   for (const action of notSeenActions) {
-    console.log(`Setting ${action} NA in updateOvenTimers`);
     actionControls[action].setTimerNA();
   }
 }
@@ -591,7 +587,6 @@ let lastFarmNotification = "";
 
 function updateTimerSpans() {
   for (const control of ["stir", "taste", "season"]) {
-    console.log(`Setting NA in updateTimerSpans(${control}): ${actionControls.cook.state} != ActionState.WAITING || ${actionControls[control].finishTime} > ${actionControls.cook.finishTime} = ${actionControls.cook.state != ActionState.WAITING || actionControls[control].finishTime > actionControls.cook.finishTime}`)
     if (
       actionControls.cook.state != ActionState.WAITING ||
       actionControls[control].finishTime > actionControls.cook.finishTime
