@@ -329,9 +329,6 @@ class ActionControl {
       throw new Error("finishTime can't be null");
     }
     this.finishTime = finishTime;
-    if (this.state != ActionControl.WAITING) {
-      console.trace();
-    }
     this.state = ActionState.WAITING;
   }
 
