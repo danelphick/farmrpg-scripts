@@ -329,6 +329,9 @@ class ActionControl {
       throw new Error("finishTime can't be null");
     }
     this.finishTime = finishTime;
+    if (this.state != ActionControl.WAITING) {
+      console.trace();
+    }
     this.state = ActionState.WAITING;
   }
 
@@ -413,7 +416,10 @@ function setTimeLeft(activityName, timeLeft, override=false) {
   control = actionControls[activityName];
   const now = new Date().getTime();
   const newFinishTime = now + timeLeft * 1000;
+  console.log(`setTimeLeft(${activityName}, ${timeLeft}, ${override})`)
+
   if (!override && control.finishTime != null && control.finishTime > now) {
+    console.log(`aborted`)
     return;
   }
   setFinishTime(activityName, newFinishTime);
@@ -446,6 +452,11 @@ function updateKitchenButtons() {
   actionControls.cook.button
     .off("click.action-announcements")
     .on("click.action-announcements", () => {
+      // Set cook to WAITING with a placeholder so updateTimerSpans doesn't NA the sub-timers
+      // before the DOM mutation updates us with the real cook finish time.
+      if (actionControls.cook.state !== ActionState.WAITING) {
+        actionControls.cook.setFinishTime(new Date().getTime() + 24 * 60 * 60 * 1000);
+      }
       for (control of ["stir", "taste", "season"]) {
         setKitchenTimer(control, true);
       }
@@ -462,6 +473,7 @@ function updateKitchenButtons() {
     // possible.
     for (const control of ["stir", "taste", "season"]) {
       actionControls[control].setTimerNA();
+      console.log("Nothing is cooking.")
     }
   }
 }
@@ -502,9 +514,10 @@ function updateOvenTimers() {
     }
   }
 
-  // If there an action never appears on the oven screen, then it means that action won't be
-  // available again before the meal is cooked, so mark it as N/A.
+  // If an action doesn't appears on the oven screen, that it means that action won't be available
+  // again before the meal is cooked, so mark it as N/A.
   for (const action of notSeenActions) {
+    console.log(`Setting ${action} NA in updateOvenTimers`);
     actionControls[action].setTimerNA();
   }
 }
@@ -578,6 +591,7 @@ let lastFarmNotification = "";
 
 function updateTimerSpans() {
   for (const control of ["stir", "taste", "season"]) {
+    console.log(`Setting NA in updateTimerSpans(${control}): ${actionControls.cook.state} != ActionState.WAITING || ${actionControls[control].finishTime} > ${actionControls.cook.finishTime} = ${actionControls.cook.state != ActionState.WAITING || actionControls[control].finishTime > actionControls.cook.finishTime}`)
     if (
       actionControls.cook.state != ActionState.WAITING ||
       actionControls[control].finishTime > actionControls.cook.finishTime
