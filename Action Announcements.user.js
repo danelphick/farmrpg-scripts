@@ -656,10 +656,12 @@ function updateTimerSpans() {
       showingKitchenNotification = true;
       lastKitchenNotification = kitchenNotificationText;
     }
-  } else if (showingKitchenNotification) {
-    // Clear any existing notification if there is nothing to show.
-    clearNotification("Kitchen");
-    showingKitchenNotification = false;
+  } else if (lastKitchenNotification) {
+    if (showingKitchenNotification) {
+      // Clear any existing notification if there is nothing to show.
+      clearNotification("Kitchen");
+      showingKitchenNotification = false;
+    }
     lastKitchenNotification = "";
   }
   if (farmNotificationText) {
@@ -669,7 +671,6 @@ function updateTimerSpans() {
         "Farm",
         () => {
           showingFarmNotification = false;
-          lastFarmNotification = "";
         },
         function () {
           actionControls.crop.setTimerCleared();
@@ -682,10 +683,12 @@ function updateTimerSpans() {
       showingFarmNotification = true;
       lastFarmNotification = farmNotificationText;
     }
-  } else if (showingFarmNotification) {
-    // Clear any existing notification if there is nothing to show.
-    clearNotification("Farm");
-    showingFarmNotification = false;
+  } else if (lastFarmNotification) {
+    if (showingFarmNotification) {
+      // Clear any existing notification if there is nothing to show.
+      clearNotification("Farm");
+      showingFarmNotification = false;
+    }
     lastFarmNotification = "";
   }
 }
