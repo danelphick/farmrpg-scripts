@@ -139,7 +139,7 @@ function highlightChatsFromChat(chat) {
   const thread = getThread(chatAuthor, chatTag);
   for (const m of thread) {
     const elm = m[3];
-    if (elm == chat || elm.textContent == chat.textContent) {
+    if (elm == chat || elm.dataset.msgKey == chat.dataset.msgKey) {
       $(elm).addClass("original-highlight-message");
     } else if (m[1] == chatAuthor) {
       $(elm).addClass("author-highlight-message");
@@ -162,11 +162,11 @@ function selectChat(event) {
   }
   currentHighlightedElements = [];
   const chat = event.currentTarget;
-  // Check textContent as well because a refresh causes the element to be recreated
+  // Check msgKey as well because a refresh causes the element to be recreated
   // so reference equality doesn't work.
   if (
     currentSelected == chat ||
-    (currentSelected != null && currentSelected.textContent == chat.textContent)
+    (currentSelected != null && currentSelected.dataset.msgKey == chat.dataset.msgKey)
   ) {
     currentSelected = null;
     return;
@@ -178,8 +178,6 @@ function selectChat(event) {
 function checkForPing(chatList) {
   let newMessages = [];
 
-  messagesByTag = {};
-  messagesByAuthor = {};
   for (let chat of chatList) {
     let timeString = chat.childNodes[0].textContent;
     let notifTime = DateTime.fromString(timeString, "hh:mm:ss a", {
@@ -189,6 +187,7 @@ function checkForPing(chatList) {
     chat.childNodes[0].textContent = notifTime.toFormat("hh:mm:ss a");
 
     let chatAuthor = getChatAuthorFromChat(chat);
+    chat.dataset.msgKey = `${notifTime.toISO()}|${chatAuthor}`;
 
     let chatContent = chat.childNodes[7].textContent;
     for (let anchor of $(chat.childNodes[7]).children("a")) {
