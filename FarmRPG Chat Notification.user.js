@@ -184,7 +184,9 @@ function checkForPing(chatList) {
     let timeString = chat.childNodes[0].textContent;
     let notifTime = DateTime.fromString(timeString, "hh:mm:ss a", {
       zone: "America/Chicago",
-    }).setZone("Europe/London");
+    }).toLocal();
+
+    chat.childNodes[0].textContent = notifTime.toFormat("hh:mm:ss a");
 
     let chatAuthor = getChatAuthorFromChat(chat);
 
