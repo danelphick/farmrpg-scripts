@@ -329,7 +329,11 @@ class ActionControl {
       throw new Error("finishTime can't be null");
     }
     this.finishTime = finishTime;
-    this.state = ActionState.WAITING;
+    // Only transition to WAITING for a future timer. For already-expired timers, preserve
+    // the current state so navigating back to a page doesn't re-trigger announcements.
+    if (finishTime > Date.now()) {
+      this.state = ActionState.WAITING;
+    }
   }
 
   // This doesn't clear the timer, so if the window is reloaded while the timer is still showing, it
