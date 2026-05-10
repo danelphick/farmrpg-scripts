@@ -93,11 +93,6 @@ speaks in case multiple announcements happen at the same time.
 If it seems to get into this state, go to settings and click *Test Speech Notifications*, which
 should get it working again.
 
-### Double announcements
-
-Sometimes it re-announces cooking done or crops done, just as you complete the action. It's probably
-reading stale state and needs to be made a bit more resilient to that.
-
 ### Intended Behaviour
 
 This is just for showing timers and reminding you to take actions. It will not play the game for you
