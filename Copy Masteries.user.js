@@ -37,7 +37,7 @@
 
             function click() {
                 let masteryTitle = null;
-                for (let x of $(".content-block-title")) { if (x.textContent== "Mastery In-Progress") { masteryTitle = x; break; } }
+                for (let x of $(".content-block-title")) { if (x.textContent.startsWith("Mastery In-Progress")) { masteryTitle = x; break; } }
 
                 if (masteryTitle) {
                     // let nodes = $(".searchbar-found ul").splice(1, 2); nodes[1] = nodes[1].nextSibling;
