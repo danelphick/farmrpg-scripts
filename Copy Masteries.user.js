@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Copy Masteries
-// @version      1.0
+// @version      1.0.1
 // @description  Creates a button top copy masteries from the FarmRPG Mastery Progress Page into clipboard
 // @author       danelphick@
 // @match        https://farmrpg.com/index.php
@@ -16,8 +16,8 @@
     $(document).ready(
         () => {
             function addButton(text, onclick, cssObj) {
-                // Check if button already exists.
-                if ($("#copyMasteryButton")) return
+                // Check if button already exists and abort.
+                if ($("#copyMasteryButton").length > 0) return;
 
                 let masteryTitle = null;
                 for (let x of $(".content-block-title")) { if (x.textContent== "Mastery In-Progress") { masteryTitle = x; break; } }
