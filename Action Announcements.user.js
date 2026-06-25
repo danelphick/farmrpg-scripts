@@ -329,9 +329,11 @@ class ActionControl {
       throw new Error("finishTime can't be null");
     }
     this.finishTime = finishTime;
-    // Only transition to WAITING for a future timer. For already-expired timers, preserve
-    // the current state so navigating back to a page doesn't re-trigger announcements.
-    if (finishTime > Date.now()) {
+    // Transition to WAITING for a future timer, or whenever leaving the NA state because the
+    // action has become available again (e.g. it now shows as ready on the oven page after a
+    // new meal started cooking). For already-expired timers in other states, preserve the
+    // current state so navigating back to a page doesn't re-trigger announcements.
+    if (finishTime > Date.now() || this.state == ActionState.NA) {
       this.state = ActionState.WAITING;
     }
   }
@@ -488,16 +490,22 @@ function updateOvenTimers() {
 
   const timeSpans = contentBlock.find("span[data-countdown-to]");
   notSeenActions = ["stir", "taste", "season"];
+  // The latest countdown on the oven page is the cooking-completion time (all sub-actions
+  // complete before the meal is ready). Used below to refresh a stale cook timer.
+  let latestCountdownTime = null;
   for (const timeSpan of timeSpans) {
     const actionCountdownTo = timeSpan.getAttribute("data-countdown-to");
+    const actionReadyTime = parseTimeInGameTZ(actionCountdownTo).toJSDate().getTime();
+    if (latestCountdownTime == null || actionReadyTime > latestCountdownTime) {
+      latestCountdownTime = actionReadyTime;
+    }
     const actionText = timeSpan.parentElement.previousElementSibling.children[0].textContent;
     const action = getFirstWord(actionText).toLowerCase();
     if (action in actionControls) {
-      const actionReadyTime = parseTimeInGameTZ(actionCountdownTo).toJSDate();
       // Don't reset it to the same value as that would reset the state to WAITING and cause
       // repeated announcements.
-      if (actionControls[action].finishTime != actionReadyTime.getTime()) {
-        setFinishTime(action, actionReadyTime.getTime());
+      if (actionControls[action].finishTime != actionReadyTime) {
+        setFinishTime(action, actionReadyTime);
       }
       notSeenActions.splice(notSeenActions.indexOf(action), 1);
     }
@@ -510,6 +518,14 @@ function updateOvenTimers() {
       setFinishTime(action, new Date().getTime());
       notSeenActions.splice(notSeenActions.indexOf(action), 1);
     }
+  }
+
+  // A countdown on the oven page means a meal is actively cooking. If our cook timer is stale
+  // (e.g. the previous meal's timer expired locally, but the meal was collected and a new one
+  // started cooking in another browser), refresh it from the cooking-completion time. Otherwise
+  // updateTimerSpans would keep flagging the sub-actions N/A because cook isn't WAITING.
+  if (latestCountdownTime != null && actionControls.cook.state != ActionState.WAITING) {
+    setFinishTime("cook", latestCountdownTime);
   }
 
   // If an action doesn't appears on the oven screen, that it means that action won't be available
