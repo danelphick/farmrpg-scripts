@@ -340,6 +340,13 @@
 
     for (const item of pending) item.textarea.value = item.text;
 
+    // New masteries are worth a dated snapshot, which the page keeps as history
+    // rather than as a setting: it reads the box directly and is not undone by
+    // Cancel, so it goes after the fill and can go before Save.
+    if (pending.some((item) => item.kind === MASTERY)) {
+      document.getElementById("save-snapshot")?.click();
+    }
+
     document.getElementById("settings-save").click();
     markDismissed(pending);
   }
