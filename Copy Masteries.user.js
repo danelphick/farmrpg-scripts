@@ -30,6 +30,7 @@
     timeKey: "masteryCapturedAt",
     dismissedKey: "dismissedMasteryAt",
     textareaId: "mastery-text",
+    forPaste: (text) => abridgeMastery(text),
   };
   const INVENTORY = {
     label: "Inventory",
@@ -37,6 +38,7 @@
     timeKey: "inventoryCapturedAt",
     dismissedKey: "dismissedInventoryAt",
     textareaId: "inventory-text",
+    forPaste: (text) => abridgeInventory(text),
   };
 
   const STORAGE_KEYS = [MASTERY, INVENTORY].flatMap((kind) => [
@@ -267,10 +269,52 @@
 
   // --- Solver: apply ---------------------------------------------------------
 
+  const PROGRESS_LINE = /^[\d,]+\s*\/\s*([\d,]+|∞)\s+Progress$/;
+  // A quantity is a line of nothing but digits and thousands separators --
+  // never a description ("+10% Exploring XP...") or a status line.
+  const QUANTITY_LINE = /^[\d,]+$/;
+
+  // Both boxes want the same shape: every block cut down to its item name and
+  // the single line the solver's parser actually reads. Blocks holding no such
+  // line -- the page's header, the standalone category markers -- have nothing
+  // to say and are dropped whole. Only the paste is abridged; the copy buttons
+  // still put the page's own text on the clipboard.
+  function abridgeBlocks(text, pickLine) {
+    const kept = [];
+    for (const block of text.split(/\n\s*\n/)) {
+      const lines = block.split("\n").filter((line) => line.trim());
+      const wanted = pickLine(lines);
+      // lines[0] being the wanted line means the block has lost its name, so
+      // there is nothing worth keeping.
+      if (wanted && lines[0] !== wanted) kept.push(`${lines[0]}\n${wanted}`);
+    }
+    return kept.length ? `${kept.join("\n\n")}\n` : "";
+  }
+
+  // Mastery: name plus "<n> / <n> Progress", dropping the percentage,
+  // Track/Stop and tier-header lines.
+  function abridgeMastery(text) {
+    return abridgeBlocks(text, (lines) =>
+      lines.find((line) => PROGRESS_LINE.test(line.trim())),
+    );
+  }
+
+  // Inventory: name plus the quantity, dropping the description and mastery
+  // status. The quantity ends the block except where a category marker trails
+  // it, so it is looked for from the end.
+  function abridgeInventory(text) {
+    return abridgeBlocks(text, (lines) =>
+      lines.findLast((line) => QUANTITY_LINE.test(line.trim())),
+    );
+  }
+
   // A capture is worth offering only if it differs from what the page already
-  // holds and isn't one the user has already said no to.
+  // holds and isn't one the user has already said no to. The comparison is
+  // against the text that would actually be pasted, so an abridged paste
+  // doesn't leave the banner claiming the page is out of date forever.
   function pendingCapture(kind) {
-    const text = readStored(kind.textKey, "");
+    const stored = readStored(kind.textKey, "");
+    const text = kind.forPaste ? kind.forPaste(stored) : stored;
     if (!text) return null;
     const textarea = document.getElementById(kind.textareaId);
     if (!textarea || textarea.value === text) return null;
