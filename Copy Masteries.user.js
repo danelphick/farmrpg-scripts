@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Copy Masteries
-// @version      2.0
-// @description  Captures masteries/inventory from the FarmRPG Mastery/Inventory pages and offers to push them into the farm solver's settings. Copy-to-clipboard buttons remain as a fallback.
+// @version      2.1
+// @description  Captures masteries/inventory and the farm's building stats from FarmRPG and offers to push them into the farm solver's settings. Copy-to-clipboard buttons remain as a fallback.
 // @author       danelphick@
 // @match        https://*.farmrpg.com/index.php
 // @match        https://*.farmrpg.com/
@@ -24,24 +24,65 @@
 
   // Shared script storage is the bridge between the two domains this script
   // matches: FarmRPG writes, the solver page reads.
-  const MASTERY = {
+  //
+  // A kind owns both halves of one capture: the keys it is stored under, and --
+  // on the solver page -- what the stored text becomes (prepare), whether that
+  // is anything the page doesn't already hold (differs), and how to put it there
+  // (apply).
+
+  // The two pasted-text captures differ only in what they abridge to and which
+  // of the solver's boxes they land in.
+  function textKind(kind) {
+    return {
+      ...kind,
+      differs(text) {
+        const box = document.getElementById(kind.textareaId);
+        return !!box && box.value !== text;
+      },
+      apply(text) {
+        const box = document.getElementById(kind.textareaId);
+        if (box) box.value = text;
+      },
+    };
+  }
+
+  const MASTERY = textKind({
     label: "Mastery",
     textKey: "masteryText",
     timeKey: "masteryCapturedAt",
     dismissedKey: "dismissedMasteryAt",
     textareaId: "mastery-text",
-    forPaste: (text) => abridgeMastery(text),
-  };
-  const INVENTORY = {
+    prepare: (text) => abridgeMastery(text),
+  });
+  const INVENTORY = textKind({
     label: "Inventory",
     textKey: "inventoryText",
     timeKey: "inventoryCapturedAt",
     dismissedKey: "dismissedInventoryAt",
     textareaId: "inventory-text",
-    forPaste: (text) => abridgeInventory(text),
+    prepare: (text) => abridgeInventory(text),
+  });
+  // The farm page's building stats go into the solver's own settings controls
+  // rather than a paste box, so this one is stored as the {config key: value}
+  // object those controls take, as JSON.
+  const FARM = {
+    label: "Farm",
+    textKey: "farmText",
+    timeKey: "farmCapturedAt",
+    dismissedKey: "dismissedFarmAt",
+    prepare: (text) => text,
+    differs: (text) => farmChanges(text).length > 0,
+    apply(text) {
+      for (const [input, value] of farmChanges(text)) {
+        if (typeof value === "boolean") input.checked = value;
+        else input.value = String(value);
+      }
+    },
   };
 
-  const STORAGE_KEYS = [MASTERY, INVENTORY].flatMap((kind) => [
+  const KINDS = [MASTERY, INVENTORY, FARM];
+
+  const STORAGE_KEYS = KINDS.flatMap((kind) => [
     kind.textKey,
     kind.timeKey,
     kind.dismissedKey,
@@ -151,6 +192,128 @@
     return readSelectionText(selectionDiv, inventoryStats);
   }
 
+  // --- FarmRPG: the farm page's building stats -------------------------------
+
+  // Every building on the farm page the solver has settings for: the page its
+  // row links to (the row's identity -- a title carries decoration, an href
+  // doesn't), and which of the figures stacked in the row's right-hand column
+  // feed which solver setting.
+  //
+  // A figure is keyed by the whole label following its number, because a label's
+  // first word need not be unique: the Quarry lists both "8,000 Stone", its
+  // ten-minute output and what the solver wants, and "48,000 Stone Hourly".
+  const FARM_BUILDINGS = [
+    { page: "coop.php", stats: { eggs: { key: "chicken_coop.produces" } } },
+    { page: "pasture.php", stats: { milk: { key: "cow_pasture.milk" } } },
+    { page: "storehouse.php", stats: { inventory: { key: "storehouse.growth" } } },
+    // The farmhouse's daily stamina gain is the Mattress Pad perk read off the
+    // page: 1 without it, 2 with.
+    { page: "farmhouse.php", stats: {
+      stamina: { key: "farmhouse.have_mattress_pad", value: (n) => n >= 2 },
+    } },
+    { page: "pen.php", stats: { antlers: { key: "raptor_pen.antlers" } } },
+    { page: "hab.php", stats: {
+      worms: { key: "worm_habitat.worms" },
+      gummies: { key: "worm_habitat.gummy_worms" },
+      mealworms: { key: "worm_habitat.mealworms" },
+    } },
+    { page: "orchard.php", stats: {
+      apples: { key: "orchard.apple_trees" },
+      oranges: { key: "orchard.orange_trees" },
+      lemons: { key: "orchard.lemon_trees" },
+    } },
+    { page: "troutfarm.php", stats: {
+      trout: { key: "trout_bait_farm.trout" },
+      grubs: { key: "trout_bait_farm.grubs" },
+      minnows: { key: "trout_bait_farm.minnows" },
+    } },
+    { page: "vineyard.php", stats: { grapes: { key: "vineyard.grapes" } } },
+    { page: "sawmill.php", stats: {
+      boards: { key: "sawmill.board" },
+      wood: { key: "sawmill.wood" },
+      oak: { key: "sawmill.oak" },
+    } },
+    { page: "steelworks.php", stats: { steel: { key: "steelworks.steel" } } },
+    { page: "hayfield.php", stats: { straw: { key: "hay_field.hay" } } },
+    { page: "quarry.php", stats: {
+      stone: { key: "quarry.stone" },
+      "coal hourly": { key: "quarry.coal" },
+    } },
+  ];
+
+  // "18,524 Eggs", "8,000 Coal Hourly": a figure and the label it is listed
+  // under.
+  const FARM_STAT_LINE = /^([\d,]+)\s+(\S.*)$/;
+
+  // The right-hand column stacks its figures with <br>, so the line breaks --
+  // not just the text -- are what separates one from the next.
+  function readLines(el) {
+    const lines = [];
+    let line = "";
+    (function walk(node) {
+      for (const child of node.childNodes) {
+        if (child.nodeType === Node.TEXT_NODE) line += child.textContent;
+        else if (child.nodeName === "BR") {
+          lines.push(line);
+          line = "";
+        } else walk(child);
+      }
+    })(el);
+    lines.push(line);
+    return lines.map((text) => text.trim()).filter(Boolean);
+  }
+
+  // "Around Your Farm" is the card holding one row per building. It is looked
+  // for in the page the main view is currently showing: FarmRPG keeps the page
+  // being navigated away from in the DOM for the transition, and a farm page on
+  // its way out is not the one to read.
+  function findFarmBuildings() {
+    const page = document.querySelector(".view-main .page-on-center") || document;
+    for (const title of page.querySelectorAll(".content-block-title")) {
+      if (title.textContent.trim().startsWith("Around Your Farm")) {
+        return title.nextElementSibling;
+      }
+    }
+    return null;
+  }
+
+  // The card's rows, by the page each links to. The link's pathname is what is
+  // matched on rather than its href: the href may be absolute or relative
+  // depending on how the page was served, and one page's name can contain
+  // another's ("pen.php" sits inside "pigpen.php").
+  function farmRowsByPage(buildings) {
+    const rows = new Map();
+    for (const link of buildings.querySelectorAll("a[href]")) {
+      const page = link.pathname.split("/").pop();
+      if (!rows.has(page)) rows.set(page, link);
+    }
+    return rows;
+  }
+
+  function readFarmStats() {
+    const buildings = findFarmBuildings();
+    if (!buildings) return null;
+
+    const rows = farmRowsByPage(buildings);
+    const captured = {};
+    for (const building of FARM_BUILDINGS) {
+      // A farm need not have every building, and the ones it lacks are simply
+      // absent from the card.
+      const row = rows.get(building.page)?.querySelector(".item-after");
+      if (!row) continue;
+      for (const line of readLines(row)) {
+        const match = FARM_STAT_LINE.exec(line);
+        const stat = match && building.stats[match[2].toLowerCase()];
+        if (!stat) continue;
+        const number = Number(match[1].replace(/,/g, ""));
+        captured[stat.key] = stat.value ? stat.value(number) : number;
+      }
+    }
+    // Key order follows FARM_BUILDINGS, so an unchanged farm serialises to the
+    // same text every visit and storeCapture keeps quiet.
+    return Object.keys(captured).length ? JSON.stringify(captured) : null;
+  }
+
   function showToast(message) {
     const toast = document.createElement("div");
     toast.textContent = message;
@@ -247,7 +410,12 @@
       if (storageReady) storeCapture(INVENTORY, readInventoryText());
     }
 
-    return !!(masteryTitle || inventoryBlock);
+    // The farm page has no paste box in the solver to fall back to, so there is
+    // no copy button to go with it -- only the capture.
+    const farmBuildings = findFarmBuildings();
+    if (farmBuildings && storageReady) storeCapture(FARM, readFarmStats());
+
+    return !!(masteryTitle || inventoryBlock || farmBuildings);
   }
 
   function scanSoon() {
@@ -308,19 +476,42 @@
     );
   }
 
+  // Which settings controls the captured farm stats would actually change. The
+  // solver generates one control per config key (data-config-key), so a stat
+  // whose control isn't on the page -- an older solver, a setting it has since
+  // renamed -- is left alone rather than guessed at.
+  function farmChanges(text) {
+    let stats;
+    try {
+      stats = JSON.parse(text);
+    } catch (err) {
+      return [];
+    }
+    const changes = [];
+    for (const [key, value] of Object.entries(stats)) {
+      const input = document.querySelector(`[data-config-key="${key}"]`);
+      if (!input) continue;
+      if (typeof value === "boolean") {
+        if (input.checked !== value) changes.push([input, value]);
+      } else if (input.value !== String(value)) {
+        changes.push([input, value]);
+      }
+    }
+    return changes;
+  }
+
   // A capture is worth offering only if it differs from what the page already
   // holds and isn't one the user has already said no to. The comparison is
-  // against the text that would actually be pasted, so an abridged paste
+  // against the value that would actually be applied, so an abridged paste
   // doesn't leave the banner claiming the page is out of date forever.
   function pendingCapture(kind) {
     const stored = readStored(kind.textKey, "");
-    const text = kind.forPaste ? kind.forPaste(stored) : stored;
-    if (!text) return null;
-    const textarea = document.getElementById(kind.textareaId);
-    if (!textarea || textarea.value === text) return null;
+    if (!stored) return null;
+    const value = kind.prepare(stored);
+    if (!value || !kind.differs(value)) return null;
     const capturedAt = readStored(kind.timeKey, 0);
     if (capturedAt && capturedAt === readStored(kind.dismissedKey, 0)) return null;
-    return { kind, text, textarea, capturedAt };
+    return { kind, value, capturedAt };
   }
 
   function markDismissed(pending) {
@@ -328,7 +519,7 @@
   }
 
   // Order matters: opening the popover is what snapshots the values Cancel
-  // would revert to, so it has to happen before the textareas are filled, and
+  // would revert to, so it has to happen before the controls are filled, and
   // the button toggles, so it must not be clicked when already open. A
   // synthetic click fires no pointerdown, so the page's outside-click handler
   // can't close the panel between these steps.
@@ -338,7 +529,7 @@
     if (!popover || !settingsButton) return;
     if (popover.hidden) settingsButton.click();
 
-    for (const item of pending) item.textarea.value = item.text;
+    for (const item of pending) item.kind.apply(item.value);
 
     // New masteries are worth a dated snapshot, which the page keeps as history
     // rather than as a setting: it reads the box directly and is not undone by
@@ -408,7 +599,7 @@
 
   async function refreshBanner() {
     await refreshCache();
-    const pending = [pendingCapture(MASTERY), pendingCapture(INVENTORY)].filter(Boolean);
+    const pending = KINDS.map(pendingCapture).filter(Boolean);
     const showing = pending.map((item) => `${item.kind.textKey}@${item.capturedAt}`).join("|");
     if (showing === bannerShowing) return;
 
@@ -421,6 +612,18 @@
 
   function initSolver() {
     refreshBanner();
+
+    // The settings controls a farm capture lands in are generated by the
+    // solver's own startup rather than served in the page, so they may not be
+    // there yet: re-check until they are, rather than leaving a waiting capture
+    // unnoticed until the tab is next focused.
+    let attempts = 0;
+    const waitForControls = setInterval(() => {
+      if (document.querySelector("[data-config-key]") || ++attempts >= 20) {
+        clearInterval(waitForControls);
+        refreshBanner();
+      }
+    }, 250);
 
     // A capture made while this tab sat in the background should be waiting
     // when you come back to it, without a reload.
@@ -435,7 +638,7 @@
     // first and the timestamp second -- the timestamp write is the one that
     // makes a capture complete.
     if (typeof GM_addValueChangeListener === "function") {
-      for (const kind of [MASTERY, INVENTORY]) {
+      for (const kind of KINDS) {
         for (const key of [kind.textKey, kind.timeKey]) {
           GM_addValueChangeListener(key, (name, oldValue, newValue, remote) => {
             if (remote) refreshBanner();
