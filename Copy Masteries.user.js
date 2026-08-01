@@ -62,9 +62,10 @@
     textareaId: "inventory-text",
     prepare: (text) => abridgeInventory(text),
   });
-  // The farm page's building stats go into the solver's own settings controls
-  // rather than a paste box, so this one is stored as the {config key: value}
-  // object those controls take, as JSON.
+  // The farm's stats go into the solver's own settings controls rather than a
+  // paste box, so this one is stored as the {config key: value} object those
+  // controls take, as JSON. Several FarmRPG pages contribute to it -- see
+  // storeFarmStats, which merges rather than replaces.
   const FARM = {
     label: "Farm",
     textKey: "farmText",
@@ -76,6 +77,13 @@
       for (const [input, value] of farmChanges(text)) {
         if (typeof value === "boolean") input.checked = value;
         else input.value = String(value);
+        // The solver asks to be written to the way a user would: set the value,
+        // then let the page see it change. Nothing captured here drives a
+        // dependent control today, but a setting that gains one shouldn't
+        // quietly stop working. (Edits inside the settings panel are staged, so
+        // this stages them too -- Save is still what applies them.)
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
       }
     },
   };
@@ -263,12 +271,13 @@
     return lines.map((text) => text.trim()).filter(Boolean);
   }
 
-  // "Around Your Farm" is the card holding one row per building. It is looked
-  // for in the page the main view is currently showing: FarmRPG keeps the page
-  // being navigated away from in the DOM for the transition, and a farm page on
-  // its way out is not the one to read.
-  function findFarmBuildings() {
-    const page = document.querySelector(".view-main .page-on-center") || document;
+  // The page the main view is currently showing, if it is the named one.
+  function currentPage(name) {
+    return document.querySelector(`.view-main .page-on-center[data-page="${name}"]`);
+  }
+
+  // "Around Your Farm" is the card holding one list row per building.
+  function findFarmBuildings(page) {
     for (const title of page.querySelectorAll(".content-block-title")) {
       if (title.textContent.trim().startsWith("Around Your Farm")) {
         return title.nextElementSibling;
@@ -277,29 +286,53 @@
     return null;
   }
 
-  // The card's rows, by the page each links to. The link's pathname is what is
-  // matched on rather than its href: the href may be absolute or relative
-  // depending on how the page was served, and one page's name can contain
-  // another's ("pen.php" sits inside "pigpen.php").
-  function farmRowsByPage(buildings) {
-    const rows = new Map();
+  // The card's building links, by the page each points at. The link's pathname
+  // is what is matched on rather than its href: the href may be absolute or
+  // relative depending on how the page was served, and one page's name can
+  // contain another's ("pen.php" sits inside "pigpen.php").
+  function farmLinksByPage(buildings) {
+    const links = new Map();
     for (const link of buildings.querySelectorAll("a[href]")) {
       const page = link.pathname.split("/").pop();
-      if (!rows.has(page)) rows.set(page, link);
+      if (!links.has(page)) links.set(page, link);
     }
-    return rows;
+    return links;
+  }
+
+  // The hidden field listing every plot as "<row><col>-<seed>-<seconds>". It is
+  // the whole farm however the crops themselves are being shown, which the
+  // condensed view collapses to one chip per crop.
+  const PLOT_ID = /^(\d+)\d-/;
+
+  function readFarmRows(page) {
+    const status = page.querySelector("#farmstatus");
+    if (!status) return null;
+    // A row is four plots wide, so a plot's row is its id less the last digit.
+    const rows = new Set();
+    for (const plot of status.textContent.split(";")) {
+      const match = PLOT_ID.exec(plot.trim());
+      if (match) rows.add(match[1]);
+    }
+    return rows.size || null;
   }
 
   function readFarmStats() {
-    const buildings = findFarmBuildings();
-    if (!buildings) return null;
+    // Read from the page the main view is currently showing: FarmRPG keeps the
+    // page being navigated away from in the DOM for the transition, and a farm
+    // page on its way out is not the one to read.
+    const page = currentPage("xfarm");
+    if (!page) return null;
 
-    const rows = farmRowsByPage(buildings);
     const captured = {};
+    const rows = readFarmRows(page);
+    if (rows) captured["farming.rows"] = rows;
+
+    const buildings = findFarmBuildings(page);
+    const links = buildings ? farmLinksByPage(buildings) : new Map();
     for (const building of FARM_BUILDINGS) {
       // A farm need not have every building, and the ones it lacks are simply
       // absent from the card.
-      const row = rows.get(building.page)?.querySelector(".item-after");
+      const row = links.get(building.page)?.querySelector(".item-after");
       if (!row) continue;
       for (const line of readLines(row)) {
         const match = FARM_STAT_LINE.exec(line);
@@ -309,9 +342,80 @@
         captured[stat.key] = stat.value ? stat.value(number) : number;
       }
     }
-    // Key order follows FARM_BUILDINGS, so an unchanged farm serialises to the
-    // same text every visit and storeCapture keeps quiet.
-    return Object.keys(captured).length ? JSON.stringify(captured) : null;
+    return Object.keys(captured).length ? captured : null;
+  }
+
+  // The storehouse's own page is the only place the current cap is stated, and
+  // it is stated in prose rather than in a field of its own. (The daily growth
+  // beside it is already read off the farm page's Storehouse row.)
+  const MAX_INVENTORY_LINE = /Currently your MAX Inventory is\s+([\d,]+)/;
+
+  function readStorehouseStats() {
+    const page = currentPage("storehouse");
+    if (!page) return null;
+    for (const block of page.querySelectorAll(".card-content-inner")) {
+      const match = MAX_INVENTORY_LINE.exec(block.textContent);
+      if (match) {
+        return {
+          "storehouse.inventory": Number(match[1].replace(/,/g, "")),
+          // What the page states is the cap as of now, so now is the date the
+          // solver should project capacity forward from.
+          "storehouse.updated_on": todayISO(),
+        };
+      }
+    }
+    return null;
+  }
+
+  // The <input type="date"> the solver puts this in wants YYYY-MM-DD, and wants
+  // it in the player's own day -- toISOString would hand back UTC's.
+  function todayISO() {
+    const now = new Date();
+    const pad = (part) => String(part).padStart(2, "0");
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+
+  // The farmhouse page's Rest Bonus paragraph, which states the stamina held
+  // and the cap it is climbing towards. (The gain per rest beside them is the
+  // Mattress Pad, already read off the farm page's Farmhouse row.)
+  const CURRENT_STAMINA_LINE = /You have\s+([\d,]+)\s+current stamina/;
+  const STAMINA_CAP_LINE = /your stamina cap is\s+([\d,]+)/;
+
+  function readFarmhouseStats() {
+    const page = currentPage("farmhouse");
+    if (!page) return null;
+    for (const block of page.querySelectorAll(".card-content-inner")) {
+      const stamina = CURRENT_STAMINA_LINE.exec(block.textContent);
+      const cap = STAMINA_CAP_LINE.exec(block.textContent);
+      if (stamina && cap) {
+        return {
+          "farmhouse.current_stamina": Number(stamina[1].replace(/,/g, "")),
+          "farmhouse.stamina_cap": Number(cap[1].replace(/,/g, "")),
+          // Like the storehouse's cap, this one is stated as of now, and the
+          // solver grows it daily from the date beside it -- left at an older
+          // date, a freshly read cap would be grown all over again.
+          "farmhouse.registered_on": todayISO(),
+        };
+      }
+    }
+    return null;
+  }
+
+  // Merged into what has been captured before, not written over it: each page
+  // knows only its own few settings, and the solver should be offered
+  // everything seen so far rather than whichever page was visited last. Merging
+  // into the stored object also keeps the key order stable, so revisiting an
+  // unchanged page still serialises to the same text and storeCapture stays
+  // quiet.
+  function storeFarmStats(stats) {
+    if (!stats) return;
+    let stored = {};
+    try {
+      stored = JSON.parse(readStored(FARM.textKey, "") || "{}");
+    } catch (err) {
+      stored = {};
+    }
+    storeCapture(FARM, JSON.stringify({ ...stored, ...stats }));
   }
 
   function showToast(message) {
@@ -410,12 +514,13 @@
       if (storageReady) storeCapture(INVENTORY, readInventoryText());
     }
 
-    // The farm page has no paste box in the solver to fall back to, so there is
-    // no copy button to go with it -- only the capture.
-    const farmBuildings = findFarmBuildings();
-    if (farmBuildings && storageReady) storeCapture(FARM, readFarmStats());
+    // The farm pages have no paste box in the solver to fall back to, so there
+    // are no copy buttons to go with them -- only the capture.
+    const farmStats =
+      readFarmStats() || readStorehouseStats() || readFarmhouseStats();
+    if (farmStats && storageReady) storeFarmStats(farmStats);
 
-    return !!(masteryTitle || inventoryBlock || farmBuildings);
+    return !!(masteryTitle || inventoryBlock || farmStats);
   }
 
   function scanSoon() {
@@ -476,10 +581,19 @@
     );
   }
 
-  // Which settings controls the captured farm stats would actually change. The
-  // solver generates one control per config key (data-config-key), so a stat
-  // whose control isn't on the page -- an older solver, a setting it has since
-  // renamed -- is left alone rather than guessed at.
+  // Every setting is named by its solver config key, which is how the solver
+  // asks to be addressed: each control mirroring a key carries it as
+  // data-config-key, whether the settings panel generates the control or writes
+  // it out by hand. (A key shared by a group of radios is answered by whichever
+  // one matches its value -- nothing captured here is one, so the first control
+  // carrying the key is always the one to write.)
+  function farmControl(key) {
+    return document.querySelector(`[data-config-key="${key}"]`);
+  }
+
+  // Which settings controls the captured farm stats would actually change. A
+  // stat whose control isn't on the page -- an older solver, a setting it has
+  // since renamed -- is left alone rather than guessed at.
   function farmChanges(text) {
     let stats;
     try {
@@ -489,7 +603,7 @@
     }
     const changes = [];
     for (const [key, value] of Object.entries(stats)) {
-      const input = document.querySelector(`[data-config-key="${key}"]`);
+      const input = farmControl(key);
       if (!input) continue;
       if (typeof value === "boolean") {
         if (input.checked !== value) changes.push([input, value]);
@@ -613,13 +727,16 @@
   function initSolver() {
     refreshBanner();
 
-    // The settings controls a farm capture lands in are generated by the
-    // solver's own startup rather than served in the page, so they may not be
-    // there yet: re-check until they are, rather than leaving a waiting capture
-    // unnoticed until the tab is next focused.
+    // Most of the controls a farm capture lands in are generated by the solver's
+    // own startup rather than served in the page, so they may not be there yet:
+    // re-check once they are, rather than leaving a waiting capture unnoticed
+    // until the tab is next focused. It waits on a control inside a generated
+    // pane -- the page serves hand-written ones carrying a config key from the
+    // start, so their presence says nothing about whether startup has run.
+    const GENERATED = '.config-fields[data-config="buildings"] [data-config-key]';
     let attempts = 0;
     const waitForControls = setInterval(() => {
-      if (document.querySelector("[data-config-key]") || ++attempts >= 20) {
+      if (document.querySelector(GENERATED) || ++attempts >= 20) {
         clearInterval(waitForControls);
         refreshBanner();
       }
