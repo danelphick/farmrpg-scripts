@@ -76,7 +76,7 @@
     apply(text) {
       for (const [input, value] of farmChanges(text)) {
         if (typeof value === "boolean") input.checked = value;
-        else input.value = String(value);
+        else input.value = value;
         // The solver asks to be written to the way a user would: set the value,
         // then let the page see it change. Nothing captured here drives a
         // dependent control today, but a setting that gains one shouldn't
@@ -90,11 +90,14 @@
 
   const KINDS = [MASTERY, INVENTORY, FARM];
 
-  const STORAGE_KEYS = KINDS.flatMap((kind) => [
-    kind.textKey,
-    kind.timeKey,
-    kind.dismissedKey,
-  ]);
+  // Not a capture of its own: what the perk pages said the last time either was
+  // visited, kept because a setting can span the two. See readPerkStats.
+  const PERK_STATE_KEY = "perkState";
+
+  const STORAGE_KEYS = [
+    ...KINDS.flatMap((kind) => [kind.textKey, kind.timeKey, kind.dismissedKey]),
+    PERK_STATE_KEY,
+  ];
 
   // Every stored value is read into a cache so the rest of the script can work
   // synchronously whichever API the script manager gave us: Tampermonkey's
@@ -401,6 +404,114 @@
     return null;
   }
 
+  // --- FarmRPG: the perk pages -----------------------------------------------
+
+  // A setting that is one perk, held or not.
+  function perkFlag(key, id) {
+    return { key, perks: { [id]: 1 }, value: Boolean };
+  }
+
+  // What each setting is worth per perk it depends on: the setting is the sum
+  // over the perks owned.
+  //
+  // The game's tiers are increments rather than running totals -- Forester
+  // restarts at 5% for its third tier, and Wanderer's stated 4/7/9/13 add up to
+  // the 4/11/20/33 the solver's own help describes -- so a ladder whose setting
+  // is which rung you stand on counts 1 a tier, and perkFlag counts 1 and turns
+  // the total into a flag.
+  //
+  // Both pages are drawn on, and neither lists the other's perks: the crop
+  // growth rate and the orchard bonus are each split across the two, and
+  // Resource Saver's three tiers are spread over all of perks.php, supply.php's
+  // crafting upgrades and its artifacts.
+  const PERK_SETTINGS = [
+    { key: "farming.speed_reduction",
+      // Quicker Farming I-IV and Enriched Soil; Irrigation System I-II.
+      perks: { 1: 5, 2: 10, 3: 15, 16: 20, 105: 10, 23: 10, 30: 20 } },
+    { key: "farming.corn_speed_reduction", perks: { 169: 10, 170: 10 } },
+    { key: "farming.double_crop_chance", perks: { 21: 15, 22: 25 } },
+    { key: "orchard.bonus", perks: { 59: 5, 77: 10, 58: 5, 78: 10 },
+      // Forester is a percentage on the page and a multiplier in the solver.
+      value: (total) => 1 + total / 100 },
+    { key: "exploring.wanderer_level", perks: { 13: 1, 14: 1, 15: 1, 20: 1 } },
+    { key: "workshop.resource_saver", perks: { 49: 1, 53: 1, 121: 1 } },
+    perkFlag("farmhouse.have_mattress_pad", 35),
+    perkFlag("farmhouse.have_apple_pie_enthusiast", 236),
+    perkFlag("chicken_coop.completed_starmap", 94),
+    perkFlag("orchard.have_tree_shaker", 157),
+    perkFlag("raptor_pen.have_antler_snare", 156),
+    perkFlag("sawmill.have_pine_boost", 233),
+    perkFlag("flour_mill.have_flour_power", 123),
+    perkFlag("feed_mill.have_feed_boost", 122),
+    perkFlag("sugar_cane_mill.have_sugar_boost_i", 237),
+    perkFlag("sugar_cane_mill.have_sugar_boost_ii", 247),
+    perkFlag("fishing.have_fishing_trawl", 112),
+    perkFlag("fishing.have_reinforced_netting", 48),
+    perkFlag("exploring.have_lemon_squeezer", 36),
+    perkFlag("exploring.have_cinnamon_sticks", 102),
+    // These two the solver otherwise has to infer from mastery progress, which
+    // is what its Auto-detect setting does. The page states them outright.
+    perkFlag("farming.have_scythe_of_dewstar", 196),
+    perkFlag("exploring.have_mechanical_heart", 235),
+  ];
+
+  // Both perk pages share a row shape: the perk's state is the button carrying
+  // its id, which reads "Unlocked" when it is owned and its price when it is
+  // not. The id is what identifies it -- names repeat down a page (supply.php
+  // lists this week's discounted perks again under their own headings) and are
+  // decorated where an id isn't.
+  function readPerkState(page) {
+    const state = {};
+    // A perk's is the only kind of button carrying one: the inventory and
+    // stamina cap upgrades sharing supply.php's first list have no id.
+    for (const button of page.querySelectorAll("button[data-id]")) {
+      state[button.dataset.id] = button.textContent.trim() === "Unlocked";
+    }
+    return Object.keys(state).length ? state : null;
+  }
+
+  function readPerkStats() {
+    const page = currentPage("perks") || currentPage("supply");
+    if (!page) return null;
+    const state = readPerkState(page);
+    if (!state) return null;
+
+    // Merged into what the other page said before anything is worked out: read
+    // on its own, one page must not halve a total that spans the two.
+    const seen = { ...readStoredJson(PERK_STATE_KEY), ...state };
+    const merged = JSON.stringify(seen);
+    if (merged !== readStored(PERK_STATE_KEY, "")) {
+      writeStored(PERK_STATE_KEY, merged);
+    }
+
+    const captured = {};
+    for (const setting of PERK_SETTINGS) {
+      const perks = Object.entries(setting.perks);
+      // A setting is left alone until every perk it depends on has been seen at
+      // least once: a perk the pages haven't shown us is not an unowned one.
+      // (A row absent from the page it belongs to -- an artifact above your
+      // tower level -- stays unseen, and its setting stays untouched.)
+      if (!perks.every(([id]) => id in seen)) continue;
+      const total = perks.reduce(
+        (sum, [id, worth]) => sum + (seen[id] ? worth : 0),
+        0,
+      );
+      captured[setting.key] = setting.value ? setting.value(total) : total;
+    }
+    return Object.keys(captured).length ? captured : null;
+  }
+
+  // --- FarmRPG: handing the captures over ------------------------------------
+
+  // Stored JSON, or an empty object if it was never written or won't parse.
+  function readStoredJson(key) {
+    try {
+      return JSON.parse(readStored(key, "") || "{}");
+    } catch (err) {
+      return {};
+    }
+  }
+
   // Merged into what has been captured before, not written over it: each page
   // knows only its own few settings, and the solver should be offered
   // everything seen so far rather than whichever page was visited last. Merging
@@ -409,13 +520,7 @@
   // quiet.
   function storeFarmStats(stats) {
     if (!stats) return;
-    let stored = {};
-    try {
-      stored = JSON.parse(readStored(FARM.textKey, "") || "{}");
-    } catch (err) {
-      stored = {};
-    }
-    storeCapture(FARM, JSON.stringify({ ...stored, ...stats }));
+    storeCapture(FARM, JSON.stringify({ ...readStoredJson(FARM.textKey), ...stats }));
   }
 
   function showToast(message) {
@@ -517,7 +622,10 @@
     // The farm pages have no paste box in the solver to fall back to, so there
     // are no copy buttons to go with them -- only the capture.
     const farmStats =
-      readFarmStats() || readStorehouseStats() || readFarmhouseStats();
+      readFarmStats() ||
+      readStorehouseStats() ||
+      readFarmhouseStats() ||
+      readPerkStats();
     if (farmStats && storageReady) storeFarmStats(farmStats);
 
     return !!(masteryTitle || inventoryBlock || farmStats);
@@ -591,6 +699,16 @@
     return document.querySelector(`[data-config-key="${key}"]`);
   }
 
+  // A captured value in the form its own control takes, which the control says
+  // rather than the value: a "bool" is a checkbox, but an "autobool" is a select
+  // of ""/"true"/"false" -- an auto-detected setting the capture can settle --
+  // so a captured true means .checked to one and .value to the other.
+  function controlValue(input, value) {
+    if (input.dataset.configType === "bool") return !!value;
+    if (typeof value === "boolean") return value ? "true" : "false";
+    return String(value);
+  }
+
   // Which settings controls the captured farm stats would actually change. A
   // stat whose control isn't on the page -- an older solver, a setting it has
   // since renamed -- is left alone rather than guessed at.
@@ -602,12 +720,13 @@
       return [];
     }
     const changes = [];
-    for (const [key, value] of Object.entries(stats)) {
+    for (const [key, captured] of Object.entries(stats)) {
       const input = farmControl(key);
       if (!input) continue;
+      const value = controlValue(input, captured);
       if (typeof value === "boolean") {
         if (input.checked !== value) changes.push([input, value]);
-      } else if (input.value !== String(value)) {
+      } else if (input.value !== value) {
         changes.push([input, value]);
       }
     }
