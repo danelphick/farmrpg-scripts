@@ -52,7 +52,8 @@
     timeKey: "masteryCapturedAt",
     dismissedKey: "dismissedMasteryAt",
     textareaId: "mastery-text",
-    prepare: (text) => abridgeMastery(text),
+    // readMasteryText already builds the abridged shape, item by item.
+    prepare: (text) => text,
   });
   const INVENTORY = textKind({
     label: "Inventory",
@@ -185,10 +186,30 @@
     return null;
   }
 
+  // Item name and progress for everything the mastery title heads: the tiers
+  // still in progress, and the Mega Mastered list below them.
+  //
+  // Read out of the DOM rather than off the page as text, because the tier
+  // headings collapse. A collapsed tier is still in the DOM but not on the
+  // page, so selecting the page would silently drop every item inside it --
+  // and a capture missing a tier reads to the solver as mastery not yet earned.
   function readMasteryText() {
     const masteryTitle = findMasteryTitle();
     if (!masteryTitle) return null;
-    return readSelectionText(masteryTitle, masteryTitle.parentElement.lastElementChild);
+    const blocks = [];
+    // Everything after the title to the end of the block it heads, the reach
+    // the selection had: what sits above it (Ready to Claim) stays left out.
+    for (let el = masteryTitle.nextElementSibling; el; el = el.nextElementSibling) {
+      for (const item of el.querySelectorAll(".item-title")) {
+        const name = item.querySelector("strong")?.textContent.trim();
+        // A tier heading has neither, and is skipped by having neither.
+        const progress = [...item.querySelectorAll("span")]
+          .map((span) => span.textContent.trim())
+          .find((text) => PROGRESS_LINE.test(text));
+        if (name && progress) blocks.push(`${name}\n${progress}`);
+      }
+    }
+    return blocks.length ? `${blocks.join("\n\n")}\n` : "";
   }
 
   function findInventoryBlock() {
@@ -592,8 +613,8 @@
   let storageReady = false;
 
   // The buttons go on before the text is read, so an automatic capture and a
-  // button copy produce byte-identical text (the mastery button sits inside the
-  // copied header line, which the solver's parser skips either way).
+  // button copy produce byte-identical text. (The mastery button sits inside
+  // the title, which is read for neither.)
   function scanPage() {
     const masteryTitle = findMasteryTitle();
     if (masteryTitle) {
@@ -655,11 +676,12 @@
   // never a description ("+10% Exploring XP...") or a status line.
   const QUANTITY_LINE = /^[\d,]+$/;
 
-  // Both boxes want the same shape: every block cut down to its item name and
-  // the single line the solver's parser actually reads. Blocks holding no such
-  // line -- the page's header, the standalone category markers -- have nothing
-  // to say and are dropped whole. Only the paste is abridged; the copy buttons
-  // still put the page's own text on the clipboard.
+  // The shape both paste boxes want, and what readMasteryText builds directly:
+  // every block cut down to its item name and the single line the solver's
+  // parser actually reads. Blocks holding no such line -- the page's header,
+  // the standalone category markers -- have nothing to say and are dropped
+  // whole. The inventory page is still read as text, so its capture is cut down
+  // here; only the copy button puts the page's own text on the clipboard.
   function abridgeBlocks(text, pickLine) {
     const kept = [];
     for (const block of text.split(/\n\s*\n/)) {
@@ -670,14 +692,6 @@
       if (wanted && lines[0] !== wanted) kept.push(`${lines[0]}\n${wanted}`);
     }
     return kept.length ? `${kept.join("\n\n")}\n` : "";
-  }
-
-  // Mastery: name plus "<n> / <n> Progress", dropping the percentage,
-  // Track/Stop and tier-header lines.
-  function abridgeMastery(text) {
-    return abridgeBlocks(text, (lines) =>
-      lines.find((line) => PROGRESS_LINE.test(line.trim())),
-    );
   }
 
   // Inventory: name plus the quantity, dropping the description and mastery
