@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Populate Solver
 // @version      1.0
-// @description  Captures masteries/inventory and the farm's building stats from FarmRPG and offers to push them into the farm solver's settings. The Copy Masteries script offers the same two text captures as clipboard buttons instead.
+// @description  Captures masteries/inventory and other settings to populate keubsfarm.org's settings.
 // @author       danelphick@
 // @match        https://*.farmrpg.com/index.php
 // @match        https://*.farmrpg.com/

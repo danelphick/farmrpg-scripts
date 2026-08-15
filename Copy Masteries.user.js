@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Copy Masteries
 // @version      3.0
-// @description  Adds Copy Mastery Data and Copy Inventory Data buttons to FarmRPG, each putting that part of the page on the clipboard verbatim -- the same text selecting it and pressing Ctrl+C would give. The Populate Solver script instead reads the same two pages for the farm solver, abridged to what its parsers want.
+// @description  Adds Copy Mastery Data and Copy Inventory Data buttons to FarmRPG.
 // @author       danelphick@
 // @match        https://*.farmrpg.com/index.php
 // @match        https://*.farmrpg.com/
