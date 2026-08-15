@@ -430,6 +430,56 @@
     return null;
   }
 
+  // --- FarmRPG: the pets page ------------------------------------------------
+
+  // What kind of pet each one is, by the id its link carries. The page itself
+  // is no help: it shows the name the player gave the pet, and the solver knows
+  // them by kind. (Id 24 is the game's Skunk, which the solver calls Critter.)
+  const PET_KINDS = {
+    1: "Cat", 2: "Dog", 3: "Squirrel", 4: "Owl", 5: "Swine", 6: "Snake",
+    7: "Baboon", 8: "Hedgehog", 9: "Spider", 10: "Frog", 11: "Penguin",
+    12: "Green Dragon", 13: "Red Dragon", 14: "Lemur", 15: "Bear",
+    16: "Blue Dragon", 17: "Pet Rock", 18: "Capybara", 19: "Strange Onion",
+    20: "Armadillo", 21: "Bird", 22: "Fox", 23: "Seal", 24: "Critter",
+    25: "Polar Bear", 26: "Hummingbird", 27: "Shark", 28: "Wolf",
+  };
+
+  const PET_LEVEL = /^Level\s+(\d+)$/;
+
+  // The card of pets you own. What sits below it -- Available Pets -- is one you
+  // could buy rather than one you have, and has no level of yours to read.
+  function findMyPets(page) {
+    for (const title of page.querySelectorAll(".content-block-title")) {
+      if (title.textContent.trim().startsWith("My Pets")) return title.nextElementSibling;
+    }
+    return null;
+  }
+
+  function readPetStats() {
+    const page = currentPage("pets");
+    if (!page) return null;
+    const myPets = findMyPets(page);
+    if (!myPets) return null;
+
+    const captured = {};
+    for (const link of myPets.querySelectorAll("a[href]")) {
+      // Matched on the resolved pathname for the same reason the farm page's
+      // building links are: an href may be absolute or relative depending on
+      // how the page was served.
+      if (link.pathname.split("/").pop() !== "pet.php") continue;
+      const kind = PET_KINDS[new URLSearchParams(link.search).get("id")];
+      if (!kind) continue;
+      // The level sits under the pet's name in the cell they share, so it is
+      // the last of that cell's lines rather than the first to match: a pet the
+      // player has named "Level 9" must not be read as one.
+      const level = readLines(link.parentElement)
+        .map((line) => PET_LEVEL.exec(line))
+        .findLast(Boolean);
+      if (level) captured[`pets.${kind}`] = Number(level[1]);
+    }
+    return Object.keys(captured).length ? captured : null;
+  }
+
   // --- FarmRPG: the perk pages -----------------------------------------------
 
   // A setting that is one perk, held or not.
@@ -651,7 +701,8 @@
       readFarmStats() ||
       readStorehouseStats() ||
       readFarmhouseStats() ||
-      readPerkStats();
+      readPerkStats() ||
+      readPetStats();
     if (farmStats && storageReady) storeFarmStats(farmStats);
 
     return !!(masteryTitle || inventoryBlock || farmStats);
