@@ -448,6 +448,11 @@
 
   // The card of pets you own. What sits below it -- Available Pets -- is one you
   // could buy rather than one you have, and has no level of yours to read.
+  //
+  // It is the whole of what you own, so a pet missing from it is one you don't
+  // have rather than one this page didn't mention -- unlike a perk, whose two
+  // pages each know only their own. That is what lets an absent pet be captured
+  // as level 0 instead of being left alone.
   function findMyPets(page) {
     for (const title of page.querySelectorAll(".content-block-title")) {
       if (title.textContent.trim().startsWith("My Pets")) return title.nextElementSibling;
@@ -461,7 +466,13 @@
     const myPets = findMyPets(page);
     if (!myPets) return null;
 
+    // Every pet starts at 0, the level of one you haven't unlocked, and the
+    // card raises the ones you have. A pet sold or never bought otherwise keeps
+    // whatever level it was last captured at.
     const captured = {};
+    for (const kind of Object.values(PET_KINDS)) captured[`pets.${kind}`] = 0;
+
+    let owned = 0;
     for (const link of myPets.querySelectorAll("a[href]")) {
       // Matched on the resolved pathname for the same reason the farm page's
       // building links are: an href may be absolute or relative depending on
@@ -475,9 +486,14 @@
       const level = readLines(link.parentElement)
         .map((line) => PET_LEVEL.exec(line))
         .findLast(Boolean);
-      if (level) captured[`pets.${kind}`] = Number(level[1]);
+      if (!level) continue;
+      captured[`pets.${kind}`] = Number(level[1]);
+      owned++;
     }
-    return Object.keys(captured).length ? captured : null;
+    // Zeroing the rest is only safe once the card has actually been read: the
+    // page scan polls a page that may still be rendering, and an empty card
+    // early on must not be taken for a farm with no pets.
+    return owned ? captured : null;
   }
 
   // --- FarmRPG: the perk pages -----------------------------------------------
