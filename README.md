@@ -7,7 +7,7 @@ has available cooking actions.
 ## Features
 
 - **Crop Ready Announcements:** Get notified when your crops are ready to be harvested.
-- **Action Announcements:** Get notified when your meals can be collected, stirred, tasted or
+- **Cooking Announcements:** Get notified when your meals can be collected, stirred, tasted or
   seasoned.
 - **Customizable announcements:** All actions can be set to announce with speech, OS notification,
   both or none.
