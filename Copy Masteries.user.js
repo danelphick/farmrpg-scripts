@@ -430,6 +430,39 @@
     return null;
   }
 
+  // --- FarmRPG: an exploring location ----------------------------------------
+
+  // A location's Exploring Effectiveness card, which names the place and states
+  // what exploring it currently costs you in the same breath.
+  //
+  // The name is taken from that sentence rather than from the id in the page's
+  // query string, because the solver names its zones exactly as the page does --
+  // so a zone it gains needs nothing here, and one it doesn't know simply finds
+  // no control to write to.
+  const LOCATION_NAME = /knowledgeable about the (.+?) and can help you explore/;
+  const LOCATION_STAMINA = /You are currently using ([\d,]+) stamina/;
+
+  function readLocationStats() {
+    // location.php serves fishing spots too, but only an exploring location
+    // states a stamina cost per continue, so only one of them matches.
+    const page = currentPage("location");
+    if (!page) return null;
+    for (const block of page.querySelectorAll(".card-content-inner")) {
+      // The name spans an element boundary in a sentence that is otherwise laid
+      // out however the page pleases, so it is matched against one flat line.
+      const text = block.textContent.replace(/\s+/g, " ");
+      const name = LOCATION_NAME.exec(text);
+      const stamina = LOCATION_STAMINA.exec(text);
+      if (name && stamina) {
+        return {
+          [`exploring.effectiveness.${name[1]}`]:
+            Number(stamina[1].replace(/,/g, "")),
+        };
+      }
+    }
+    return null;
+  }
+
   // --- FarmRPG: the pets page ------------------------------------------------
 
   // What kind of pet each one is, by the id its link carries. The page itself
@@ -718,7 +751,8 @@
       readStorehouseStats() ||
       readFarmhouseStats() ||
       readPerkStats() ||
-      readPetStats();
+      readPetStats() ||
+      readLocationStats();
     if (farmStats && storageReady) storeFarmStats(farmStats);
 
     return !!(masteryTitle || inventoryBlock || farmStats);
