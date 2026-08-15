@@ -61,7 +61,8 @@
     timeKey: "inventoryCapturedAt",
     dismissedKey: "dismissedInventoryAt",
     textareaId: "inventory-text",
-    prepare: (text) => abridgeInventory(text),
+    // readInventoryText already builds the abridged shape, item by item.
+    prepare: (text) => text,
   });
   // The farm's stats go into the solver's own settings controls rather than a
   // paste box, so this one is stored as the {config key: value} object those
@@ -162,22 +163,12 @@
 
   // --- FarmRPG: capture ------------------------------------------------------
 
-  // Selection.toString() is what gives the block-level newlines the solver's
-  // parsers rely on (Range.toString() runs the text nodes together), so the
-  // page's real selection has to be used -- and then put back, since this now
-  // runs on its own rather than from a button the user clicked.
-  function readSelectionText(startNode, endNode) {
-    const selection = document.getSelection();
-    const saved = [];
-    for (let i = 0; i < selection.rangeCount; i++) saved.push(selection.getRangeAt(i));
-
-    selection.setBaseAndExtent(startNode, 0, endNode, 0);
-    const text = selection.toString();
-
-    selection.removeAllRanges();
-    for (const range of saved) selection.addRange(range);
-    return text;
-  }
+  // The one line the solver's mastery parser reads, beneath the item's name.
+  const PROGRESS_LINE = /^[\d,]+\s*\/\s*([\d,]+|∞)\s+Progress$/;
+  // ...and the inventory parser's: a quantity is nothing but digits and
+  // thousands separators, never a description ("+10% Exploring XP...") or a
+  // status line.
+  const QUANTITY_LINE = /^[\d,]+$/;
 
   function findMasteryTitle() {
     for (const x of $(".content-block-title")) {
@@ -216,12 +207,26 @@
     return $(".list-block-search.contacts-block")[0] || null;
   }
 
+  // Item name and quantity for everything the inventory lists, read out of the
+  // DOM for the same reason the mastery is: the category headings collapse, and
+  // a collapsed category is still in the DOM but not on the page, so selecting
+  // the page silently dropped every item inside it -- and an item missing from
+  // the capture reads to the solver as one you don't hold.
+  //
+  // The category headings and the Inventory Stats card sharing the block have
+  // no item row of their own, so they are left out by having nothing to say.
   function readInventoryText() {
-    const selectionDiv = findInventoryBlock();
-    if (!selectionDiv) return null;
-    const inventoryStats = $(selectionDiv).find(".content-block-title")[0];
-    if (!inventoryStats) return null;
-    return readSelectionText(selectionDiv, inventoryStats);
+    const block = findInventoryBlock();
+    if (!block) return null;
+    const blocks = [];
+    for (const item of block.querySelectorAll(".item-inner")) {
+      const name = item.querySelector(".item-title strong")?.textContent.trim();
+      const quantity = item.querySelector(".item-after")?.textContent.trim();
+      if (name && quantity && QUANTITY_LINE.test(quantity)) {
+        blocks.push(`${name}\n${quantity}`);
+      }
+    }
+    return blocks.length ? `${blocks.join("\n\n")}\n` : "";
   }
 
   // --- FarmRPG: the farm page's building stats -------------------------------
@@ -670,38 +675,6 @@
   }
 
   // --- Solver: apply ---------------------------------------------------------
-
-  const PROGRESS_LINE = /^[\d,]+\s*\/\s*([\d,]+|∞)\s+Progress$/;
-  // A quantity is a line of nothing but digits and thousands separators --
-  // never a description ("+10% Exploring XP...") or a status line.
-  const QUANTITY_LINE = /^[\d,]+$/;
-
-  // The shape both paste boxes want, and what readMasteryText builds directly:
-  // every block cut down to its item name and the single line the solver's
-  // parser actually reads. Blocks holding no such line -- the page's header,
-  // the standalone category markers -- have nothing to say and are dropped
-  // whole. The inventory page is still read as text, so its capture is cut down
-  // here; only the copy button puts the page's own text on the clipboard.
-  function abridgeBlocks(text, pickLine) {
-    const kept = [];
-    for (const block of text.split(/\n\s*\n/)) {
-      const lines = block.split("\n").filter((line) => line.trim());
-      const wanted = pickLine(lines);
-      // lines[0] being the wanted line means the block has lost its name, so
-      // there is nothing worth keeping.
-      if (wanted && lines[0] !== wanted) kept.push(`${lines[0]}\n${wanted}`);
-    }
-    return kept.length ? `${kept.join("\n\n")}\n` : "";
-  }
-
-  // Inventory: name plus the quantity, dropping the description and mastery
-  // status. The quantity ends the block except where a category marker trails
-  // it, so it is looked for from the end.
-  function abridgeInventory(text) {
-    return abridgeBlocks(text, (lines) =>
-      lines.findLast((line) => QUANTITY_LINE.test(line.trim())),
-    );
-  }
 
   // Every setting is named by its solver config key, which is how the solver
   // asks to be addressed: each control mirroring a key carries it as
