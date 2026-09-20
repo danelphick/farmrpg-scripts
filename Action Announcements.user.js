@@ -696,7 +696,7 @@ function updateTimerSpans() {
           actionControls.crop.setTimerCleared();
           window.focus();
           if (window.location.href.indexOf("/xfarm.php") < 0) {
-            document.getElementsByClassName("fa-home")[0].click();
+            document.getElementsByClassName("fa-farm")[0].click();
           }
         }
       );

@@ -53,9 +53,7 @@ You can customise the notifications by clicking on the *Open Settings* button un
 There are also test buttons that show you what each kind of announcement will be like.
 
 Clicking on the OS notifications will take you back to your FarmRPG tab and will navigate to the
-kitchen for the cooking actions. For crop notifications, if not already on the farm page, it will
-navigate to the main page from which you can navigate to the farm. It doesn't navigate to the farm
-directly as there isn't a button in the sidebar for that.
+either the kitchen for the cooking actions or farm for or crop notifications.
 
 ## Limitations/Bugs
 
