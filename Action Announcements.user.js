@@ -1,5 +1,5 @@
 // ==UserScript==
-// @version      0.2
+// @version      0.3
 // @name         Action Announcements
 // @description  Announce when the cooking/crop actions are ready
 // @author       danelphick@
