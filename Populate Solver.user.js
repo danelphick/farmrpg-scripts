@@ -5,8 +5,7 @@
 // @author       danelphick@
 // @match        https://*.farmrpg.com/index.php
 // @match        https://*.farmrpg.com/
-// @match        http://localhost:8000/*
-// @match        http://127.0.0.1:8000/*
+// @match        http://keubsfarm.org/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=farmrpg.com
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -482,7 +481,7 @@
     12: "Green Dragon", 13: "Red Dragon", 14: "Lemur", 15: "Bear",
     16: "Blue Dragon", 17: "Pet Rock", 18: "Capybara", 19: "Strange Onion",
     20: "Armadillo", 21: "Bird", 22: "Fox", 23: "Seal", 24: "Critter",
-    25: "Polar Bear", 26: "Hummingbird", 27: "Shark", 28: "Wolf",
+    25: "Polar Bear", 26: "Hummingbird", 27: "Shark", 28: "Wolf", 29: "Miner",
   };
 
   const PET_LEVEL = /^Level\s+(\d+)$/;
