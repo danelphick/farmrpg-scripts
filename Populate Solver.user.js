@@ -23,10 +23,12 @@
   // Shared script storage is the bridge between the two domains this script
   // matches: FarmRPG writes, the solver page reads.
   //
-  // A kind owns both halves of one capture: the keys it is stored under, and --
+  // A kind owns both halves of one capture: the key it is stored under, and --
   // on the solver page -- what the stored text becomes (prepare), whether that
   // is anything the page doesn't already hold (differs), and how to put it there
-  // (apply).
+  // (apply). The kinds share one capture time: the solver is offered everything
+  // it lacks whenever anything new is captured, so a capture it couldn't take
+  // yet (a setting it hadn't gained) is offered again with the next one.
 
   // The two pasted-text captures differ only in what they abridge to and which
   // of the solver's boxes they land in.
@@ -47,8 +49,6 @@
   const MASTERY = textKind({
     label: "Mastery",
     textKey: "masteryText",
-    timeKey: "masteryCapturedAt",
-    dismissedKey: "dismissedMasteryAt",
     textareaId: "mastery-text",
     // readMasteryText already builds the abridged shape, item by item.
     prepare: (text) => text,
@@ -56,8 +56,6 @@
   const INVENTORY = textKind({
     label: "Inventory",
     textKey: "inventoryText",
-    timeKey: "inventoryCapturedAt",
-    dismissedKey: "dismissedInventoryAt",
     textareaId: "inventory-text",
     // readInventoryText already builds the abridged shape, item by item.
     prepare: (text) => text,
@@ -69,8 +67,6 @@
   const FARM = {
     label: "Farm",
     textKey: "farmText",
-    timeKey: "farmCapturedAt",
-    dismissedKey: "dismissedFarmAt",
     prepare: (text) => text,
     differs: (text) => farmChanges(text).length > 0,
     apply(text) {
@@ -94,8 +90,15 @@
   // visited, kept because a setting can span the two. See readPerkStats.
   const PERK_STATE_KEY = "perkState";
 
+  // When anything was last captured, and the capture time the solver page last
+  // applied or dismissed.
+  const CAPTURED_AT_KEY = "capturedAt";
+  const DISMISSED_AT_KEY = "dismissedAt";
+
   const STORAGE_KEYS = [
-    ...KINDS.flatMap((kind) => [kind.textKey, kind.timeKey, kind.dismissedKey]),
+    ...KINDS.map((kind) => kind.textKey),
+    CAPTURED_AT_KEY,
+    DISMISSED_AT_KEY,
     PERK_STATE_KEY,
   ];
 
@@ -676,7 +679,7 @@
     if (!text || !text.trim()) return;
     if (readStored(kind.textKey, "") === text) return;
     writeStored(kind.textKey, text);
-    writeStored(kind.timeKey, Date.now());
+    writeStored(CAPTURED_AT_KEY, Date.now());
     console.log(`${kind.label} data captured.`);
     showToast(`${kind.label} data captured`);
   }
@@ -769,21 +772,28 @@
   }
 
   // A capture is worth offering only if it differs from what the page already
-  // holds and isn't one the user has already said no to. The comparison is
-  // against the value that would actually be applied, so an abridged paste
-  // doesn't leave the banner claiming the page is out of date forever.
+  // holds. The comparison is against the value that would actually be applied,
+  // so an abridged paste doesn't leave the banner claiming the page is out of
+  // date forever.
   function pendingCapture(kind) {
     const stored = readStored(kind.textKey, "");
     if (!stored) return null;
     const value = kind.prepare(stored);
     if (!value || !kind.differs(value)) return null;
-    const capturedAt = readStored(kind.timeKey, 0);
-    if (capturedAt && capturedAt === readStored(kind.dismissedKey, 0)) return null;
-    return { kind, value, capturedAt };
+    return { kind, value };
+  }
+
+  // Everything the page lacks, offered once per capture: nothing until
+  // something new is captured after the last Update or Dismiss.
+  function pendingUpdate() {
+    const capturedAt = readStored(CAPTURED_AT_KEY, 0);
+    if (!capturedAt || capturedAt === readStored(DISMISSED_AT_KEY, 0)) return null;
+    const items = KINDS.map(pendingCapture).filter(Boolean);
+    return items.length ? { capturedAt, items } : null;
   }
 
   function markDismissed(pending) {
-    for (const item of pending) writeStored(item.kind.dismissedKey, item.capturedAt);
+    writeStored(DISMISSED_AT_KEY, pending.capturedAt);
   }
 
   // Order matters: opening the popover is what snapshots the values Cancel
@@ -797,12 +807,12 @@
     if (!popover || !settingsButton) return;
     if (popover.hidden) settingsButton.click();
 
-    for (const item of pending) item.kind.apply(item.value);
+    for (const item of pending.items) item.kind.apply(item.value);
 
     // New masteries are worth a dated snapshot, which the page keeps as history
     // rather than as a setting: it reads the box directly and is not undone by
     // Cancel, so it goes after the fill and can go before Save.
-    if (pending.some((item) => item.kind === MASTERY)) {
+    if (pending.items.some((item) => item.kind === MASTERY)) {
       document.getElementById("save-snapshot")?.click();
     }
 
@@ -822,10 +832,9 @@
       "box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);";
 
     const message = document.createElement("span");
-    const ages = pending
-      .map((item) => `${item.kind.label.toLowerCase()} ${describeAge(item.capturedAt)}`)
-      .join(" · ");
-    message.textContent = `New FarmRPG data available — ${ages}`;
+    const labels = pending.items.map((item) => item.kind.label.toLowerCase()).join(" · ");
+    message.textContent =
+      `New FarmRPG data available — ${labels} · ${describeAge(pending.capturedAt)}`;
     banner.appendChild(message);
 
     function addButton(text, primary, onclick) {
@@ -867,12 +876,14 @@
 
   async function refreshBanner() {
     await refreshCache();
-    const pending = KINDS.map(pendingCapture).filter(Boolean);
-    const showing = pending.map((item) => `${item.kind.textKey}@${item.capturedAt}`).join("|");
+    const pending = pendingUpdate();
+    const showing = pending
+      ? `${pending.capturedAt}:${pending.items.map((item) => item.kind.textKey).join("|")}`
+      : "";
     if (showing === bannerShowing) return;
 
     removeBanner();
-    if (pending.length) {
+    if (pending) {
       bannerEl = showBanner(pending);
       bannerShowing = showing;
     }
@@ -905,17 +916,13 @@
 
     // Better still where the manager supports it: the FarmRPG tab's write
     // reaches this tab as it happens, so the banner appears while you're
-    // looking at it. Both keys are watched because storeCapture writes the text
-    // first and the timestamp second -- the timestamp write is the one that
+    // looking at it. Only the capture time is watched: storeCapture writes the
+    // text first and the time second, so the time's write is the one that
     // makes a capture complete.
     if (typeof GM_addValueChangeListener === "function") {
-      for (const kind of KINDS) {
-        for (const key of [kind.textKey, kind.timeKey]) {
-          GM_addValueChangeListener(key, (name, oldValue, newValue, remote) => {
-            if (remote) refreshBanner();
-          });
-        }
-      }
+      GM_addValueChangeListener(CAPTURED_AT_KEY, (name, oldValue, newValue, remote) => {
+        if (remote) refreshBanner();
+      });
     }
   }
 
