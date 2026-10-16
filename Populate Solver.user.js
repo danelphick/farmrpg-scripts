@@ -217,6 +217,21 @@
     return $(".list-block-search.contacts-block")[0] || null;
   }
 
+  // An element's own text, leaving out whatever is nested inside it. The
+  // quantity is the bare text of its row's .item-after, but browser extensions
+  // that show mastery in the inventory add the item's progress to that cell in
+  // an element of their own, and the cell's textContent runs the two
+  // together: 107,949 progress and 22,435 held
+  // came out as one count of "107,94922,435", and a Mega Mastered item's
+  // non-numeric progress made its quantity unreadable, dropping it entirely.
+  function ownText(el) {
+    return [...el.childNodes]
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent)
+      .join("")
+      .trim();
+  }
+
   // Item name and quantity for everything the inventory lists, read out of the
   // DOM for the same reason the mastery is: the category headings collapse, and
   // a collapsed category is still in the DOM but not on the page, so selecting
@@ -231,7 +246,8 @@
     const blocks = [];
     for (const item of block.querySelectorAll(".item-inner")) {
       const name = item.querySelector(".item-title strong")?.textContent.trim();
-      const quantity = item.querySelector(".item-after")?.textContent.trim();
+      const after = item.querySelector(".item-after");
+      const quantity = after && ownText(after);
       if (name && quantity && QUANTITY_LINE.test(quantity)) {
         blocks.push(`${name}\n${quantity}`);
       }
